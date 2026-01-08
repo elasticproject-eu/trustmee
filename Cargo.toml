@@ -9,7 +9,12 @@ members = [
     "integration-tests",
     "tools/trustee-cli",
     "deps/key-value-storage",
-    "deps/policy-engine"
+    "deps/policy-engine",
+    "wasm-components/dcap-qvl-wasi",
+    "wasm-components/tdx-verifier-component",
+    "wasm-components/tdx-verifier-test",
+    "wasm-components/snp-verifier-component",
+    "wasm-components/snp-verifier-test"
 ]
 resolver = "2"
 
@@ -77,3 +82,6 @@ tonic-prost = "0.14"
 tonic-prost-build = "0.14"
 tracing = "0.1.43"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+
+[patch.crates-io]
+dcap-qvl = { git = "https://github.com/Phala-Network/dcap-qvl.git", tag = "v0.3.6" }
