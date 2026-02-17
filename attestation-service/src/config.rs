@@ -12,6 +12,30 @@ use thiserror::Error;
 const AS_WORK_DIR: &str = "AS_WORK_DIR";
 pub const DEFAULT_WORK_DIR: &str = "/opt/confidential-containers/attestation-service";
 
+fn default_component_cache_base_dir() -> PathBuf {
+    PathBuf::from(".wasm-verification-component-cache/components")
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct WasmComponentRegistryConfig {
+    /// Whether to verify component signatures with `wasmsign2` on registration.
+    #[serde(default)]
+    pub verify_component_signature: bool,
+
+    /// Base path for per-component collateral cache folders.
+    #[serde(default = "default_component_cache_base_dir")]
+    pub component_cache_base_dir: PathBuf,
+}
+
+impl Default for WasmComponentRegistryConfig {
+    fn default() -> Self {
+        Self {
+            verify_component_signature: false,
+            component_cache_base_dir: default_component_cache_base_dir(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Config {
     /// The location for Attestation Service to store data.
@@ -29,6 +53,10 @@ pub struct Config {
     /// Optional configuration for verifier modules
     #[serde(default)]
     pub verifier_config: Option<VerifierConfig>,
+
+    /// Configuration for wasm component registration/lookup.
+    #[serde(default)]
+    pub wasm_component_registry: WasmComponentRegistryConfig,
 }
 
 fn default_work_dir() -> PathBuf {
@@ -55,6 +83,7 @@ impl Default for Config {
             rvps_config: RvpsConfig::default(),
             attestation_token_broker: EarTokenConfiguration::default(),
             verifier_config: None,
+            wasm_component_registry: WasmComponentRegistryConfig::default(),
         }
     }
 }
@@ -92,7 +121,7 @@ mod tests {
     use rstest::rstest;
     use std::path::PathBuf;
 
-    use super::Config;
+    use super::{Config, WasmComponentRegistryConfig};
     use crate::ear_token::TokenSignerConfig;
     use crate::rvps::RvpsCrateConfig;
     use crate::{ear_token::EarTokenConfiguration, rvps::RvpsConfig};
@@ -115,6 +144,7 @@ mod tests {
             profile_name: "tag:github.com,2024:confidential-containers/Trustee".into()
         },
         verifier_config: None,
+        wasm_component_registry: WasmComponentRegistryConfig::default(),
     })]
     #[case("./tests/configs/example2.json", Config {
         work_dir: PathBuf::from("/var/lib/attestation-service/"),
@@ -136,6 +166,7 @@ mod tests {
             })
         },
         verifier_config: None,
+        wasm_component_registry: WasmComponentRegistryConfig::default(),
     })]
     fn read_config(#[case] config: &str, #[case] expected: Config) {
         let config = std::fs::read_to_string(config).unwrap();

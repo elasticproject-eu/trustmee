@@ -49,6 +49,9 @@ pub mod intel_dcap;
 #[cfg(feature = "tpm-verifier")]
 pub mod tpm;
 
+#[cfg(feature = "wasm-verification-component-driver")]
+pub mod wasm_verification_component_driver;
+
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 pub struct VerifierConfig {
     #[cfg(feature = "nvidia-verifier")]
@@ -71,7 +74,24 @@ pub struct VerifierConfig {
 pub async fn to_verifier(
     tee: &Tee,
     _config: Option<VerifierConfig>,
+    use_wasm_verification_component: bool,
 ) -> Result<Box<dyn Verifier + Send + Sync>> {
+    if use_wasm_verification_component {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "wasm-verification-component-driver")] {
+                let verifier = wasm_verification_component_driver::WasmVerificationComponentDriver::new()
+                    .context("initialize wasm-verification-component driver")?;
+                return Ok(
+                    Box::new(verifier) as Box<dyn Verifier + Send + Sync>,
+                );
+            } else {
+                bail!(
+                    "feature `wasm-verification-component-driver` is not enabled for `verifier` crate."
+                )
+            }
+        }
+    }
+
     match tee {
         Tee::Sev => todo!(),
         Tee::AzSnpVtpm => {

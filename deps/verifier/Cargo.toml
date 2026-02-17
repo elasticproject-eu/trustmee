@@ -17,6 +17,7 @@ all-verifier = [
     "se-verifier",
     "nvidia-verifier",
     "tpm-verifier",
+    "wasm-verification-component-driver",
 ]
 tdx-verifier = ["eventlog", "scroll", "intel-tee-quote-verification-rs"]
 sgx-verifier = ["scroll", "intel-tee-quote-verification-rs"]
@@ -47,6 +48,7 @@ nvidia-verifier = [
     "x509-parser",
 ]
 tpm-verifier = ["az-cvm-vtpm", "openssl", "tss-esapi"]
+wasm-verification-component-driver = ["dep:wasm-verification-component"]
 
 [dependencies]
 anyhow.workspace = true
@@ -69,6 +71,7 @@ csv-rs = { git = "https://github.com/openanolis/csv-rs", rev = "b67a07e", option
     "network",
 ] }
 eventlog = { path = "../eventlog", optional = true }
+wasm-verification-component = { path = "../../deps/wasm-verification-component", optional = true }
 hex.workspace = true
 jsonwebkey = "0.4.0"
 jsonwebtoken = { workspace = true, default-features = false, optional = true }

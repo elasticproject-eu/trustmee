@@ -35,6 +35,13 @@ fn serialize_canon_json<T: Serialize>(value: T) -> Result<Vec<u8>> {
 pub type TeeEvidence = serde_json::Value;
 pub type TeeClass = String;
 
+#[derive(Clone, Copy, Debug, Default)]
+pub enum VerifierType {
+    #[default]
+    Native,
+    WasmVerificationComponent,
+}
+
 /// Tee Claims are the output of the verifier plus some metadata
 /// that identifies the TEE type and class.
 #[derive(Debug, Serialize)]
@@ -119,6 +126,8 @@ pub struct VerificationRequest {
     /// The concrete way of checking is decide by the enum type. If this parameter is set `None`, the comparation
     /// will not be performed.
     pub init_data: Option<InitDataInput>,
+    /// Verifier implementation to use for this request.
+    pub verifier: VerifierType,
 }
 
 pub struct AttestationService {
@@ -134,6 +143,23 @@ impl AttestationService {
             fs::create_dir_all(&config.work_dir)
                 .await
                 .map_err(ServiceError::CreateDir)?;
+        }
+
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "wasm-verification-component-driver")] {
+                verifier::wasm_verification_component_driver::configure_component_registry(
+                    verifier::wasm_verification_component_driver::ComponentRegistryConfig {
+                        verify_component_signature: config
+                            .wasm_component_registry
+                            .verify_component_signature,
+                        component_cache_base_dir: config
+                            .wasm_component_registry
+                            .component_cache_base_dir
+                            .clone(),
+                    },
+                )
+                .context("configure wasm component registry")?;
+            }
         }
 
         let rvps = rvps::initialize_rvps_client(&config.rvps_config)
@@ -193,6 +219,10 @@ impl AttestationService {
             let verifier = verifier::to_verifier(
                 &verification_request.tee,
                 self.config.clone().verifier_config,
+                matches!(
+                    verification_request.verifier,
+                    VerifierType::WasmVerificationComponent
+                ),
             )
             .await?;
 
@@ -260,6 +290,19 @@ impl AttestationService {
             .context("register reference value")
     }
 
+    pub async fn register_wasm_component(&self, _component_bytes: &[u8]) -> Result<String> {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "wasm-verification-component-driver")] {
+                verifier::wasm_verification_component_driver::register_component(_component_bytes)
+                    .context("register wasm component")
+            } else {
+                bail!(
+                    "feature `wasm-verification-component-driver` is not enabled for `attestation-service`."
+                )
+            }
+        }
+    }
+
     /// Query Reference Values
     pub async fn query_reference_value(&self, reference_value_id: &str) -> Result<Option<Value>> {
         self.rvps
@@ -275,7 +318,8 @@ impl AttestationService {
         tee: Tee,
         tee_parameters: String,
     ) -> Result<String> {
-        let verifier = verifier::to_verifier(&tee, self.config.clone().verifier_config).await?;
+        let verifier =
+            verifier::to_verifier(&tee, self.config.clone().verifier_config, false).await?;
         verifier
             .generate_supplemental_challenge(tee_parameters)
             .await

@@ -18,11 +18,13 @@ section:
 | `work_dir`                 | String                      | The location for Attestation Service to store data. | False      | Firstly try to read from ENV `AS_WORK_DIR`. If not any, use `/opt/confidential-containers/attestation-service`       |
 | `rvps_config`              | [RVPSConfiguration][2]      | RVPS configuration                                  | False      | -       |
 | `attestation_token_broker` | [AttestationTokenBroker][1]  | Attestation result token configuration.            | False      | -       |
-| `verifier_config`          | [VerifierConfig][3]          | TEE verifier-specific configuration.               | False      | -       |
+| `verifier_config`          | [VerifierConfiguration][3]  | Optional configuration for verifier drivers.        | False      | -       |
+| `wasm_component_registry`  | [WasmComponentRegistry][4]  | Optional config for wasm component registration and cache layout. | False | defaults |
 
 [1]: #attestationtokenbroker
 [2]: #rvps-configuration
 [3]: #verifier-configuration
+[4]: #wasm-component-registry
 
 #### AttestationTokenBroker
 
@@ -175,6 +177,23 @@ Available when the `tdx-verifier`, `sgx-verifier`, or `az-tdx-vtpm-verifier` fea
 | `collateral_service`  | String  | URL of the Intel PCS collateral service               | No       | `https://api.trustedservices.intel.com/sgx/certification/v4/` |
 | `use_secure_cert`     | Boolean | Whether to use secure certificates                    | No       | -                                                          |
 | `tcb_update_type`     | String  | TCB update type: `"early"` or `"standard"`            | No       | `"early"`                                                  |
+`verifier_config` is optional.
+
+| Property       | Type                    | Description                                          | Required | Default |
+|----------------|-------------------------|------------------------------------------------------|----------|---------|
+| `tpm_verifier` | Object                  | TPM verifier configuration                            | No       | -       |
+| `nvidia_verifier` | Object               | NVIDIA verifier configuration                         | No       | -       |
+
+For `wasm-verification-component`, no `verifier_config` is required. Register components via the component registration API and reference them by `component_id` in attestation requests.
+
+#### Wasm Component Registry
+
+`wasm_component_registry` is optional.
+
+| Property                     | Type    | Description                                                             | Required | Default |
+|-----------------------------|---------|-------------------------------------------------------------------------|----------|---------|
+| `verify_component_signature`| Boolean | Verify registrations with `wasmsign2 verify`.                          | No       | `false` |
+| `component_cache_base_dir`  | String  | Base directory for per-component collateral cache folders (`<base>/<component_id>`). | No | `.wasm-verification-component-cache/components` |
 
 
 ## Configuration Examples
@@ -375,3 +394,52 @@ Configuration with Intel DCAP verifier (TDX/SGX):
     }
 }
 ```
+Register component first:
+
+```json
+{
+    "component": "<base64(URL_SAFE_NO_PAD) raw wasm component bytes>"
+}
+```
+
+API response:
+
+```json
+{
+    "component_id": "component-<sha256>"
+}
+```
+
+Then use `wasm-verification-component` at request level:
+
+```json
+{
+    "verification_requests": [{
+        "tee": "tdx",
+        "verifier": "wasm-verification-component",
+        "evidence": "<base64(URL_SAFE_NO_PAD) of the JSON below>"
+    }],
+    "policy_ids": ["default"]
+}
+```
+
+Decoded `evidence` JSON example:
+
+```json
+{
+    "component_id": "component-<sha256>",
+    "evidence": {
+        "quote": "...",
+        "cc_eventlog": "..."
+    },
+    "pccs_url": "https://your-pccs.example.com",
+    "tee_class": "cpu"
+}
+```
+
+Notes:
+1. `verifier` can be `native` (default) or `wasm-verification-component`.
+2. `tee` is still required and is used for token metadata/policy context.
+3. Attestation request should provide `component_id` (not wasm bytes) when using this backend.
+4. Cache location is host-managed. Each registered component gets its own cache directory under `component_cache_base_dir`.
+5. `evidence` inside wrapped JSON can contain any verifier-specific schema, so this path is not limited to TDX/SNP.

@@ -70,6 +70,11 @@ message IndividualAttestationRequest {
     // Hash algorithm used to calculate runtime data. Currently can be "sha256",
     // "sha384" or "sha512". If not specified, "sha384" will be selected.
     string runtime_data_hash_algorithm = 8;
+
+    // Verifier backend for this request. Use:
+    // - "native" (default)
+    // - "wasm-verification-component"
+    string verifier = 9;
 }
 
 message AttestationResponse {
@@ -91,8 +96,20 @@ message ChallengeResponse {
     string attestation_challenge = 1;
 }
 
+message RegisterComponentRequest {
+    // Base64 encoded wasm component bytes. The alphabet is URL_SAFE_NO_PAD.
+    // defined in https://datatracker.ietf.org/doc/html/rfc4648#section-5
+    string component = 1;
+}
+
+message RegisterComponentResponse {
+    // Stable component ID. Duplicate component registrations return the same ID.
+    string component_id = 1;
+}
+
 service AttestationService {
     rpc AttestationEvaluate(AttestationRequest) returns (AttestationResponse) {};
     rpc SetAttestationPolicy(SetPolicyRequest) returns (SetPolicyResponse) {};
     rpc GetAttestationChallenge(ChallengeRequest) returns (ChallengeResponse) {};
+    rpc RegisterComponent(RegisterComponentRequest) returns (RegisterComponentResponse) {};
 }
