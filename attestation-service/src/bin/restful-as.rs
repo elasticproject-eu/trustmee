@@ -16,11 +16,13 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt::Subscriber, EnvFilter};
 
-use crate::restful::{attestation, get_challenge, get_policies, set_policy};
+use crate::restful::{attestation, get_challenge, get_policies, register_component, set_policy};
 
 mod restful;
 
 shadow!(build);
+
+const REST_JSON_LIMIT_BYTES: usize = 16 * 1024 * 1024;
 
 /// RESTful-AS command-line arguments.
 #[derive(Debug, Parser)]
@@ -61,6 +63,9 @@ enum WebApi {
 
     #[strum(serialize = "/challenge")]
     Challenge,
+
+    #[strum(serialize = "/component")]
+    Component,
 }
 
 #[derive(Error, Debug)]
@@ -165,6 +170,7 @@ loglevel: {env_filter}
     let server = HttpServer::new(move || {
         App::new()
             .wrap(configure_cors(&allowed_origin))
+            .app_data(web::JsonConfig::default().limit(REST_JSON_LIMIT_BYTES))
             .service(web::resource(WebApi::Attestation.as_ref()).route(web::post().to(attestation)))
             .service(
                 web::resource(WebApi::Policy.as_ref())
@@ -172,6 +178,9 @@ loglevel: {env_filter}
                     .route(web::get().to(get_policies)),
             )
             .service(web::resource(WebApi::Challenge.as_ref()).route(web::post().to(get_challenge)))
+            .service(
+                web::resource(WebApi::Component.as_ref()).route(web::post().to(register_component)),
+            )
             .app_data(web::Data::clone(&attestation_service))
     });
 

@@ -4,7 +4,7 @@ use actix_web::{body::BoxBody, web, HttpRequest, HttpResponse, ResponseError};
 use anyhow::{anyhow, bail, Context};
 use attestation_service::{
     AttestationService, HashAlgorithm, InitDataInput as InnerInitDataInput,
-    RuntimeData as InnerRuntimeData, VerificationRequest,
+    RuntimeData as InnerRuntimeData, VerificationRequest, VerifierType as InnerVerifierType,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use kbs_types::Tee;
@@ -50,9 +50,21 @@ pub struct AttestationRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct RegisterComponentRequest {
+    /// Base64 encoded Wasm component bytes (URL_SAFE_NO_PAD alphabet).
+    component: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RegisterComponentResponse {
+    component_id: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct IndividualAttestationRequest {
     tee: String,
     evidence: String,
+    verifier: Option<String>,
     runtime_data: Option<RuntimeData>,
     init_data: Option<InitDataInput>,
     runtime_data_hash_algorithm: Option<String>,
@@ -128,6 +140,44 @@ fn parse_init_data(data: InitDataInput) -> Result<InnerInitDataInput> {
     Ok(res)
 }
 
+fn parse_verifier(verifier: Option<&str>) -> anyhow::Result<InnerVerifierType> {
+    match verifier {
+        None | Some("native") => Ok(InnerVerifierType::Native),
+        Some("wasm-verification-component") | Some("wasm") => {
+            Ok(InnerVerifierType::WasmVerificationComponent)
+        }
+        Some(other) => bail!(
+            "verifier `{other}` not supported, expected `native` or `wasm-verification-component`"
+        ),
+    }
+}
+
+/// Register a wasm verification component and return a stable component_id.
+#[instrument(skip_all, fields(request_id = tracing::field::Empty))]
+pub async fn register_component(
+    request: web::Json<RegisterComponentRequest>,
+    cocoas: web::Data<Arc<RwLock<AttestationService>>>,
+) -> Result<HttpResponse> {
+    let request_id = Uuid::new_v4().to_string();
+    Span::current().record("request_id", tracing::field::display(&request_id));
+    info!("RegisterComponent API called.");
+
+    let request = request.into_inner();
+    let component_bytes = URL_SAFE_NO_PAD
+        .decode(&request.component)
+        .context("base64 decode component bytes")?;
+
+    let component_id = cocoas
+        .read()
+        .await
+        .register_wasm_component(&component_bytes)
+        .await
+        .context("register wasm component")?;
+
+    info!(component_id = component_id, "RegisterComponent succeeded.");
+    Ok(HttpResponse::Ok().json(RegisterComponentResponse { component_id }))
+}
+
 /// This handler uses json extractor
 #[instrument(skip_all, fields(request_id = tracing::field::Empty))]
 pub async fn attestation(
@@ -172,6 +222,7 @@ pub async fn attestation(
                 HashAlgorithm::Sha384
             }
         };
+        let verifier = parse_verifier(attestation_request.verifier.as_deref())?;
 
         verification_requests.push(VerificationRequest {
             evidence,
@@ -179,6 +230,7 @@ pub async fn attestation(
             runtime_data,
             runtime_data_hash_algorithm,
             init_data,
+            verifier,
         });
     }
 

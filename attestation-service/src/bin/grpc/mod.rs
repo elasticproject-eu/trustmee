@@ -2,7 +2,7 @@ use anyhow::bail;
 use attestation_service::HashAlgorithm;
 use attestation_service::{
     config::Config, config::ConfigError, AttestationService as Service, ServiceError, Tee,
-    TeeEvidence, VerificationRequest,
+    TeeEvidence, VerificationRequest, VerifierType,
 };
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -18,8 +18,8 @@ use uuid::Uuid;
 
 use crate::as_api::attestation_service_server::{AttestationService, AttestationServiceServer};
 use crate::as_api::{
-    AttestationRequest, AttestationResponse, ChallengeRequest, ChallengeResponse, SetPolicyRequest,
-    SetPolicyResponse,
+    AttestationRequest, AttestationResponse, ChallengeRequest, ChallengeResponse,
+    RegisterComponentRequest, RegisterComponentResponse, SetPolicyRequest, SetPolicyResponse,
 };
 use crate::rvps_api::{
     reference_value_provider_service_server::{
@@ -48,6 +48,16 @@ fn to_kbs_tee(tee: &str) -> anyhow::Result<Tee> {
     };
 
     Ok(tee)
+}
+
+fn to_verifier_type(verifier: &str) -> anyhow::Result<VerifierType> {
+    match verifier {
+        "" | "native" => Ok(VerifierType::Native),
+        "wasm-verification-component" | "wasm" => Ok(VerifierType::WasmVerificationComponent),
+        other => bail!(
+            "Unsupported verifier `{other}`. Expected `native` or `wasm-verification-component`"
+        ),
+    }
 }
 
 #[derive(Error, Debug)]
@@ -104,6 +114,32 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
 
         info!("SetPolicy succeeded.");
         Ok(Response::new(SetPolicyResponse {}))
+    }
+
+    #[instrument(skip_all, fields(request_id = tracing::field::Empty))]
+    async fn register_component(
+        &self,
+        request: Request<RegisterComponentRequest>,
+    ) -> Result<Response<RegisterComponentResponse>, Status> {
+        let request: RegisterComponentRequest = request.into_inner();
+        let request_id = Uuid::new_v4().to_string();
+        Span::current().record("request_id", tracing::field::display(&request_id));
+        info!("RegisterComponent API called.");
+
+        let component_bytes = URL_SAFE_NO_PAD
+            .decode(request.component)
+            .map_err(|e| Status::aborted(format!("base64 decode component bytes: {e}")))?;
+
+        let component_id = self
+            .read()
+            .await
+            .attestation_service
+            .register_wasm_component(&component_bytes)
+            .await
+            .map_err(|e| Status::aborted(format!("register wasm component: {e}")))?;
+
+        info!(component_id = component_id, "RegisterComponent succeeded.");
+        Ok(Response::new(RegisterComponentResponse { component_id }))
     }
 
     #[instrument(skip_all, fields(request_id = tracing::field::Empty))]
@@ -179,6 +215,8 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
                         HashAlgorithm::Sha384
                     }
                 };
+            let verifier = to_verifier_type(&verification_request.verifier)
+                .map_err(|e| Status::aborted(format!("parse verifier type: {e}")))?;
 
             verification_requests.push(VerificationRequest {
                 evidence,
@@ -186,6 +224,7 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
                 runtime_data,
                 runtime_data_hash_algorithm,
                 init_data,
+                verifier,
             });
         }
         let policy_ids = match request.policy_ids.is_empty() {

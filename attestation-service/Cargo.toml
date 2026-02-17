@@ -17,6 +17,7 @@ cca-verifier = ["verifier/cca-verifier"]
 se-verifier = ["verifier/se-verifier"]
 nvidia-verifier = ["verifier/nvidia-verifier"]
 tpm-verifier = ["verifier/tpm-verifier"]
+wasm-verification-component-driver = ["verifier/wasm-verification-component-driver"]
 
 rvps-grpc = ["prost", "tonic"]
 

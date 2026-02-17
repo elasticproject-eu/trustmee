@@ -119,6 +119,7 @@ Supported Verifier Drivers:
 - `se`: Verifier Driver for IBM Secure Execution (SE).
 - `nvidia`: Verifier Driver for NVIDIA Devices.
 - `tpm`: Verifier Driver for Trusted Platform Module (TPM)
+- `wasm-verification-component`: Optional backend that uses Wasm verification component.
 > [!WARNING]  
 > **TPM Device Note**: TPM devices (except Azure vTPM series) are not bound to TEE endorsement.
 > When using TPM as a standalone attestation device (not integrated with Azure vTPM), you must ensure that you
@@ -132,6 +133,30 @@ The AS supports a different set of verifier drivers based on the target architec
 - **x86_64**: All verifier drivers are included via `all-verifier`
 - **aarch64**: `cca` is included
 - **s390x**: `snp`, `nvidia` and `se` are included
+
+#### Selecting the `wasm-verification-component` backend
+
+Use request-level selection instead of configuration:
+
+1. Set request field `verifier` to `wasm-verification-component`
+2. Keep `tee` as your logical TEE type (`tdx`, `snp`, `sgx`, etc.)
+3. Register the wasm verifier component first via `POST /component` with base64(URL_SAFE_NO_PAD) component bytes.
+4. Put the returned `component_id` and nested tee evidence in the `evidence` payload:
+
+```json
+{
+  "component_id": "component-<sha256>",
+  "evidence": {
+    "...": "tee specific evidence JSON"
+  },
+  "pccs_url": "https://your-pccs.example.com",
+  "tee_class": "cpu"
+}
+```
+
+Cache location is host-managed (not request-managed). AS creates per-component cache folders under a base directory using `component_id`.
+
+If `verifier` is omitted (or set to `native`), AS uses native verifier drivers as before.
 
 ### Policy Engine
 
