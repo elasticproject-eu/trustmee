@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::path::PathBuf;
 use std::sync::LazyLock;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 
 mod tdx {
     pub mod claims;
@@ -40,19 +40,12 @@ fn now_secs() -> u64 {
         .as_secs()
 }
 
-fn env_flag(name: &str) -> bool {
-    match std::env::var(name) {
-        Ok(v) => matches!(
-            v.to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
-        Err(_) => false,
-    }
-}
-
 fn regularize_data(expected: &[u8], expected_len: usize, field: &str) -> Result<Vec<u8>> {
     if expected.len() > expected_len {
-        bail!("{field} length ({}) exceeds expected length ({expected_len})", expected.len());
+        bail!(
+            "{field} length ({}) exceeds expected length ({expected_len})",
+            expected.len()
+        );
     }
     if expected.len() == expected_len {
         return Ok(expected.to_vec());
@@ -127,32 +120,18 @@ fn cache_root_from_preopens() -> Result<PathBuf> {
 fn ecdsa_quote_verification_via_dcap_qvl(
     quote: &[u8],
     pccs_url: Option<&str>,
-) -> Result<(Map<String, Value>, f64)> {
+) -> Result<Map<String, Value>> {
     let cache_dir = cache_root_from_preopens()?.join("dcap-qvl-cache");
-    let collateral_start = Instant::now();
-    let collateral =
-        dcap_qvl_wasi::get_collateral_cached(pccs_url.as_deref(), quote, &cache_dir)
-            .context("get collateral")?;
-    let collateral_ms = collateral_start.elapsed().as_secs_f64() * 1000.0;
+    let collateral = dcap_qvl_wasi::get_collateral_cached(pccs_url.as_deref(), quote, &cache_dir)
+        .context("get collateral")?;
     let now = now_secs();
-    // Match Intel DCAP behavior: treat expired collateral as a warning.
-    if std::env::var("DCAP_QVL_IGNORE_EXPIRY").is_err() {
-        std::env::set_var("DCAP_QVL_IGNORE_EXPIRY", "1");
-    }
-    // Allow non-zero MR_SERVICETD for TDX 1.5 quotes (service TD bound).
-    if std::env::var("DCAP_QVL_ALLOW_SERVICE_TD").is_err() {
-        std::env::set_var("DCAP_QVL_ALLOW_SERVICE_TD", "1");
-    }
     let verified = dcap_qvl::verify::verify(quote, &collateral, now)
         .context("dcap-qvl quote verification failed")?;
     let mut claims = custom_claims_from_verified_report(verified);
     if collateral_expired(&collateral, now) {
-        claims.insert(
-            "collateral_expired".to_string(),
-            Value::Bool(true),
-        );
+        claims.insert("collateral_expired".to_string(), Value::Bool(true));
     }
-    Ok((claims, collateral_ms))
+    Ok(claims)
 }
 
 fn parse_evidence(evidence: &[u8]) -> Result<(Vec<u8>, Option<Vec<u8>>, Option<String>)> {
@@ -184,22 +163,12 @@ fn evaluate_impl(
     expected_report_data: Option<Vec<u8>>,
     expected_init_data_hash: Option<Vec<u8>>,
 ) -> Result<String> {
-    let timing_enabled = env_flag("AS_VERIFICATION_TIMING_JSON");
-    let verify_start = Instant::now();
-
     let (quote_bin, ccel_bin, pccs_url) = parse_evidence(&evidence)?;
     if quote_bin.is_empty() {
         bail!("TDX Quote is empty");
     }
 
-    let (custom_claims, collateral_ms) =
-        ecdsa_quote_verification_via_dcap_qvl(&quote_bin, pccs_url.as_deref())?;
-    if timing_enabled {
-        eprintln!(
-            "{{\"event\":\"as_tdx_collateral_timing\",\"tee\":\"Tdx\",\"mode\":\"wasm\",\"ms\":{ms:.3}}}",
-            ms = collateral_ms
-        );
-    }
+    let custom_claims = ecdsa_quote_verification_via_dcap_qvl(&quote_bin, pccs_url.as_deref())?;
     let quote = tdx::quote::parse_tdx_quote(&quote_bin).context("parse TDX quote")?;
 
     if let Some(expected) = expected_report_data {
@@ -218,7 +187,8 @@ fn evaluate_impl(
 
     let ccel = match ccel_bin {
         Some(bin) if !bin.is_empty() => {
-            let ccel = CcEventLog::try_from(bin).map_err(|e| anyhow!("Parse CCEL failed: {e:?}"))?;
+            let ccel =
+                CcEventLog::try_from(bin).map_err(|e| anyhow!("Parse CCEL failed: {e:?}"))?;
             let compare_obj: Vec<ReferenceMeasurement> = vec![
                 ReferenceMeasurement {
                     index: 1,
@@ -253,14 +223,6 @@ fn evaluate_impl(
         bail!("claim is not a JSON object");
     };
     claim_map.extend(custom_claims);
-
-    if timing_enabled {
-        let total_ms = verify_start.elapsed().as_secs_f64() * 1000.0;
-        let ms = (total_ms - collateral_ms).max(0.0);
-        eprintln!(
-            "{{\"event\":\"as_verifier_timing\",\"tee\":\"Tdx\",\"mode\":\"wasm\",\"ms\":{ms:.3}}}"
-        );
-    }
 
     Ok(serde_json::to_string(claim_map)?)
 }
