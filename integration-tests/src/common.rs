@@ -19,7 +19,7 @@ use kbs::plugins::{
 };
 
 use attestation_service::{
-    config::Config,
+    config::{Config, WasmComponentRegistryConfig},
     ear_token::EarTokenConfiguration,
     rvps::{grpc::RvpsRemoteConfig, RvpsConfig, RvpsCrateConfig},
 };
@@ -238,6 +238,7 @@ impl TestHarness {
                     rvps_config,
                     attestation_token_broker: attestation_token_config,
                     verifier_config: None,
+                    wasm_component_registry: WasmComponentRegistryConfig::default(),
                 }),
                 timeout: 5,
             },

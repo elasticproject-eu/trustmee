@@ -6,7 +6,7 @@ use anyhow::*;
 use async_trait::async_trait;
 use attestation_service::{
     config::Config as AsConfig, AttestationService, HashAlgorithm, InitDataInput, RuntimeData,
-    VerificationRequest,
+    VerificationRequest, VerifierType,
 };
 use kbs_types::{Challenge, Tee};
 use tokio::sync::RwLock;
@@ -37,6 +37,7 @@ impl Attest for BuiltInCoCoAs {
                 runtime_data: Some(RuntimeData::Structured(evidence.runtime_data)),
                 runtime_data_hash_algorithm: HashAlgorithm::Sha384,
                 init_data: None,
+                verifier: VerifierType::Native,
             };
             if let Some(init_data) = evidence.init_data {
                 if init_data.format != "toml" {

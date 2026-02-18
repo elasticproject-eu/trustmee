@@ -60,12 +60,3 @@ cargo run -p wasm-verification-component -- \
 ```bash
 cargo test -p wasm-verification-component --test sample_library_usage -- --nocapture
 ```
-
-## Use from another repo
-
-Add dependency:
-
-```toml
-[dependencies]
-wasm-verification-component = { path = "/path/to/trustee/deps/wasm-verification-component" }
-```

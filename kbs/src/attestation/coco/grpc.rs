@@ -114,6 +114,7 @@ impl Attest for GrpcClientPool {
                     evidence.runtime_data.to_string(),
                 )),
                 init_data: None,
+                verifier: "native".to_string(),
             };
 
             if let Some(init_data) = evidence.init_data {
