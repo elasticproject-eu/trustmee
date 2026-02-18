@@ -349,17 +349,27 @@ impl ReferenceValueProviderService for Arc<RwLock<AttestationServer>> {
     }
 }
 
-pub async fn start(socket: SocketAddr, config_path: Option<String>) -> Result<(), GrpcError> {
+pub async fn start(
+    socket: SocketAddr,
+    config_path: Option<String>,
+    max_message_size: usize,
+) -> Result<(), GrpcError> {
     info!(
-        "Starting gRPC Attestation Service. Listening on socket: {}",
-        &socket
+        "Starting gRPC Attestation Service. Listening on socket: {}, max_message_size: {}",
+        &socket, max_message_size
     );
 
     let attestation_server = Arc::new(RwLock::new(AttestationServer::new(config_path).await?));
+    let attestation_service = AttestationServiceServer::new(attestation_server.clone())
+        .max_decoding_message_size(max_message_size)
+        .max_encoding_message_size(max_message_size);
+    let rvps_service = ReferenceValueProviderServiceServer::new(attestation_server)
+        .max_decoding_message_size(max_message_size)
+        .max_encoding_message_size(max_message_size);
 
     Server::builder()
-        .add_service(AttestationServiceServer::new(attestation_server.clone()))
-        .add_service(ReferenceValueProviderServiceServer::new(attestation_server))
+        .add_service(attestation_service)
+        .add_service(rvps_service)
         .serve(socket)
         .await?;
     Ok(())

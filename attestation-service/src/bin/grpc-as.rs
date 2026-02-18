@@ -29,6 +29,10 @@ pub struct Cli {
     /// Socket that the server will listen on to accept requests.
     #[arg(short, long, default_value = "127.0.0.1:3000")]
     pub socket: SocketAddr,
+
+    /// Max gRPC message size (bytes) for request decoding/response encoding.
+    #[arg(long, default_value_t = 16 * 1024 * 1024)]
+    pub max_message_size: usize,
 }
 
 #[tokio::main]
@@ -65,7 +69,7 @@ loglevel: {env_filter}
 
     let cli = Cli::parse();
 
-    let server = grpc::start(cli.socket, cli.config_file);
+    let server = grpc::start(cli.socket, cli.config_file, cli.max_message_size);
     tokio::try_join!(server)?;
 
     Ok(())
