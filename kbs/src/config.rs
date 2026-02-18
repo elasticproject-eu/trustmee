@@ -132,6 +132,7 @@ mod tests {
 
     #[cfg(feature = "coco-as-builtin")]
     use attestation_service::{
+        config::WasmComponentRegistryConfig,
         ear_token::{EarTokenConfiguration, COCO_AS_ISSUER_NAME, DEFAULT_TOKEN_DURATION},
         rvps::{grpc::RvpsRemoteConfig, RvpsConfig, RvpsCrateConfig},
     };
@@ -205,6 +206,7 @@ mod tests {
                             ..Default::default()
                         },
                         verifier_config: None,
+                        wasm_component_registry: WasmComponentRegistryConfig::default(),
                     }
                 ),
             timeout: crate::attestation::config::DEFAULT_TIMEOUT,
@@ -327,6 +329,7 @@ mod tests {
                             ..Default::default()
                         },
                         verifier_config: None,
+                        wasm_component_registry: WasmComponentRegistryConfig::default(),
                     }
                 ),
             timeout: crate::attestation::config::DEFAULT_TIMEOUT,
@@ -456,6 +459,7 @@ mod tests {
                             ..Default::default()
                         },
                         verifier_config: None,
+                        wasm_component_registry: WasmComponentRegistryConfig::default(),
                     }
                 ),
             timeout: crate::attestation::config::DEFAULT_TIMEOUT,
