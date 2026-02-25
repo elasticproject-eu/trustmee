@@ -21,7 +21,7 @@ It includes both TDX and SNP examples.
 Build TDX Wasm component in a Rust container:
 
 ```bash
-sudo docker run --rm \
+docker run --rm \
   -v "$PWD:/work" \
   -w /work \
   rust:1.90 \
@@ -31,7 +31,7 @@ sudo docker run --rm \
 Build SNP Wasm component using the existing builder script (Docker-based):
 
 ```bash
-sudo bash wasm-components/snp-verifier-component/scripts/build-snp-wasm-component.sh
+bash wasm-components/snp-verifier-component/scripts/build-snp-wasm-component.sh
 ```
 
 Expected artifacts:
@@ -44,18 +44,18 @@ Expected artifacts:
 The compose file starts `grpc-as`. Rebuild `as` with wasm verification component driver enabled:
 
 ```bash
-sudo docker compose down as rvps
-sudo docker compose up -d setup
-sudo docker compose build --no-cache --build-arg VERIFIER='wasm-verification-component-driver' as
-sudo docker compose up -d rvps as
-sudo docker compose logs --tail=120 as
+docker compose down as rvps
+docker compose up -d setup
+docker compose build --no-cache --build-arg VERIFIER='wasm-verification-component-driver' as
+docker compose up -d rvps as
+docker compose logs --tail=120 as
 ```
 
 Confirm the service is up on `50004`:
 
 ```bash
-sudo docker compose ps
-sudo docker compose port as 50004
+docker compose ps
+docker compose port as 50004
 ```
 
 ## 3) Helpers
@@ -66,7 +66,7 @@ b64url_file() {
 }
 
 grpcurl_docker() {
-  sudo docker run --rm -i --network host \
+  docker run --rm -i --network host \
     -v "$PWD:/work" \
     fullstorydev/grpcurl:latest \
     -plaintext \
@@ -81,7 +81,7 @@ grpcurl_docker() {
 Prepare sample quote:
 
 ```bash
-cp deps/verifier/test_data/tdx_quote_5.dat /tmp/tdx_quote.bin
+cp deps/verifier/test_data/tdx_quote.bin /tmp/tdx_quote.bin
 ```
 
 Register TDX Wasm component:
@@ -186,13 +186,13 @@ jq -r '.attestationToken // .attestation_token' /tmp/attest-snp-grpc-resp.json >
 ## 6) Stop services
 
 ```bash
-sudo docker compose down
+docker compose down
 ```
 
 ## Troubleshooting
 
 - `connection refused` to `127.0.0.1:50004`:
-  - `as` is not up or crashed. Run `sudo docker compose ps` and `sudo docker compose logs --tail=200 as`.
+  - `as` is not up or crashed. Run `docker compose ps` and `docker compose logs --tail=200 as`.
 - `Unimplemented` on `RegisterComponent`:
   - You are running an older `as` image. Rebuild and restart `as`.
 - `feature wasm-verification-component-driver is not enabled`:
