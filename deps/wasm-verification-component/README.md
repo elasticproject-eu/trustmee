@@ -4,7 +4,7 @@ Minimal evidence-only attestation verifier crate.
 
 It accepts:
 - attestation evidence bytes
-- a verifier Wasm component (`trustee:verifier` WIT)
+- a verifier Wasm component (`TrustMee:verifier` WIT)
 
 It returns:
 - attestation result JSON from the component
@@ -23,34 +23,25 @@ cargo run -p wasm-verification-component -- \
 
 ## Build verifier components
 
-```bash
-cargo build --manifest-path wasm-components/Cargo.toml \
-  -p tdx-verifier-component \
-  --target wasm32-wasip2 \
-  --release
-```
+Build your TDX and SNP Wasm components or use the availible ones at the following path:
 
-For `snp-verifier-component`, use the builder colocated with the SNP wasm verification component:
+- `deps/wasm-verification-component/test_data/tdx_verifier_component.wasm`
+- `deps/wasm-verification-component/test_data/snp_verifier_component.wasm`
 
-```bash
-# from repo root
-bash wasm-components/snp-verifier-component/scripts/build-snp-wasm-component.sh
-```
-
-## Test with the three sample evidence files
+## Test with the sample evidence files
 
 ```bash
 # 1) TDX quote evidence (needs Intel PCS connectivity)
 cargo run -p wasm-verification-component -- \
-  --component target/wasm32-wasip2/release/tdx_verifier_component.wasm \
-  --evidence tdx_quote.bin \
+  --component deps/wasm-verification-component/test_data/tdx_verifier_component.wasm \
+  --evidence deps/wasm-verification-component/test_data/tdx_quote.bin \
   --cache-dir .wasm-verification-component-tdx-cache \
   --compact
 
 # 2) SNP JSON evidence (works offline because cert chain is embedded)
 cargo run -p wasm-verification-component -- \
-  --component target/wasm32-wasip2/release/snp_verifier_component.wasm \
-  --evidence snp_evidence.json \
+  --component deps/wasm-verification-component/test_data/snp_verifier_component.wasm \
+  --evidence deps/wasm-verification-component/test_data/snp_evidence.json \
   --cache-dir .wasm-verification-component-snp-cache \
   --compact
 ```

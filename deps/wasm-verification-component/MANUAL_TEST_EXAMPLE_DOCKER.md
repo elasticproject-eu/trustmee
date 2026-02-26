@@ -18,26 +18,10 @@ It includes both TDX and SNP examples.
 
 ## 1) Build verifier components (Docker)
 
-Build TDX Wasm component in a Rust container:
+Build your TDX and SNP Wasm components or use the availible ones at the following path:
 
-```bash
-docker run --rm \
-  -v "$PWD:/work" \
-  -w /work \
-  rust:1.90 \
-  bash -c 'export PATH=/usr/local/cargo/bin:$PATH && rustup target add wasm32-wasip2 && cargo build --manifest-path wasm-components/Cargo.toml -p tdx-verifier-component --release --target wasm32-wasip2 --target-dir target'
-```
-
-Build SNP Wasm component using the existing builder script (Docker-based):
-
-```bash
-bash wasm-components/snp-verifier-component/scripts/build-snp-wasm-component.sh
-```
-
-Expected artifacts:
-
-- `target/wasm32-wasip2/release/tdx_verifier_component.wasm`
-- `target/wasm32-wasip2/release/snp_verifier_component.wasm`
+- `deps/wasm-verification-component/test_data/tdx_verifier_component.wasm`
+- `deps/wasm-verification-component/test_data/snp_verifier_component.wasm`
 
 ## 2) Start AS using existing compose files
 
@@ -88,7 +72,7 @@ Register TDX Wasm component:
 
 ```bash
 # Avoid "Argument list too long" by streaming into jq
-b64url_file target/wasm32-wasip2/release/tdx_verifier_component.wasm \
+b64url_file deps/wasm-verification-component/test_data/tdx_verifier_component.wasm \
   | jq -Rs '{component: .}' > /tmp/register-tdx-grpc.json
 
 grpcurl_docker attestation.AttestationService/RegisterComponent \
@@ -140,7 +124,7 @@ jq -r '.attestationToken // .attestation_token' /tmp/attest-tdx-grpc-resp.json >
 Register SNP Wasm component:
 
 ```bash
-b64url_file target/wasm32-wasip2/release/snp_verifier_component.wasm \
+b64url_file deps/wasm-verification-component/test_data/snp_verifier_component.wasm \
   | jq -Rs '{component: .}' > /tmp/register-snp-grpc.json
 
 grpcurl_docker attestation.AttestationService/RegisterComponent \

@@ -17,27 +17,10 @@ It includes both TDX and SNP examples.
 
 ## 1) Build verifier components
 
-Build TDX component and force output into root `target/`:
+Build your TDX and SNP Wasm components or use the availible ones at the following path:
 
-```bash
-cargo build \
-  --manifest-path wasm-components/Cargo.toml \
-  -p tdx-verifier-component \
-  --release \
-  --target wasm32-wasip2 \
-  --target-dir target
-```
-
-Build SNP component (this script writes to root `target/`):
-
-```bash
-bash wasm-components/snp-verifier-component/scripts/build-snp-wasm-component.sh
-```
-
-Expected artifacts:
-
-- `target/wasm32-wasip2/release/tdx_verifier_component.wasm`
-- `target/wasm32-wasip2/release/snp_verifier_component.wasm`
+- `deps/wasm-verification-component/test_data/tdx_verifier_component.wasm`
+- `deps/wasm-verification-component/test_data/snp_verifier_component.wasm`
 
 ## 2) Start attestation-service (REST)
 
@@ -87,19 +70,17 @@ b64url_file() {
 }
 ```
 
-## 4) TDX flow (using `tdx_quote.bin`)
-
-Use `tdx_quote_5.dat` sample but name it `tdx_quote.bin`:
+## 4) TDX flow
 
 ```bash
-cp deps/verifier/test_data/tdx_quote_5.dat /tmp/tdx_quote.bin
+cp deps/verifier/test_data/tdx_quote.bin /tmp/tdx_quote.bin
 ```
 
 Register TDX Wasm component:
 
 ```bash
 jq -n \
-  --arg component "$(b64url_file target/wasm32-wasip2/release/tdx_verifier_component.wasm)" \
+  --arg component "$(b64url_file deps/wasm-verification-component/test_data/tdx_verifier_component.wasm)" \
   '{component: $component}' > /tmp/register-tdx.json
 
 curl -sS -X POST http://127.0.0.1:8080/component \
@@ -152,7 +133,7 @@ Register SNP Wasm component:
 
 ```bash
 jq -n \
-  --arg component "$(b64url_file target/wasm32-wasip2/release/snp_verifier_component.wasm)" \
+  --arg component "$(b64url_file deps/wasm-verification-component/test_data/snp_verifier_component.wasm)" \
   '{component: $component}' > /tmp/register-snp.json
 
 curl -sS -X POST http://127.0.0.1:8080/component \

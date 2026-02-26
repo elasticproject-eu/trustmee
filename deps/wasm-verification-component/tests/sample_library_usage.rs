@@ -14,12 +14,12 @@ fn repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
 fn sample_library_usage_with_snp_json_evidence() -> Result<(), Box<dyn std::error::Error>> {
     let repo_root = repo_root()?;
 
-    let component_path = repo_root.join("target/wasm32-wasip2/release/snp_verifier_component.wasm");
-    let evidence_path = repo_root.join("snp_evidence.json");
+    let component_path = repo_root.join("deps/wasm-verification-component/test_data/snp_verifier_component.wasm");
+    let evidence_path = repo_root.join("deps/wasm-verification-component/test_data/snp_evidence.json");
 
     if !component_path.exists() {
         eprintln!(
-            "skipping sample test: missing {} (build with `bash wasm-components/snp-verifier-component/scripts/build-snp-wasm-component.sh`)",
+            "skipping sample test: missing {}",
             component_path.display()
         );
         return Ok(());
@@ -55,12 +55,12 @@ fn sample_library_usage_with_snp_json_evidence() -> Result<(), Box<dyn std::erro
 #[test]
 fn sample_library_usage_with_tdx_quote() -> Result<(), Box<dyn std::error::Error>> {
     let repo_root = repo_root()?;
-    let component_path = repo_root.join("target/wasm32-wasip2/release/tdx_verifier_component.wasm");
-    let evidence_path = repo_root.join("tdx_quote.bin");
+    let component_path = repo_root.join("deps/wasm-verification-component/test_data/tdx_verifier_component.wasm");
+    let evidence_path = repo_root.join("deps/wasm-verification-component/test_data/tdx_quote.bin");
 
     if !component_path.exists() {
         eprintln!(
-            "skipping sample test: missing {} (build with `cargo build --manifest-path wasm-components/Cargo.toml -p tdx-verifier-component --target wasm32-wasip2 --release`)",
+            "skipping sample test: missing {}",
             component_path.display()
         );
         return Ok(());
