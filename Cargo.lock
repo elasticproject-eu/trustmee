@@ -8418,7 +8418,7 @@ dependencies = [
 [[package]]
 name = "wasm-verification-component"
 version = "0.1.0"
-source = "git+https://version.aalto.fi/gitlab/platsec/attestation/trustmee-verification-library.git?branch=main#ededadb06ff957169be432f6f1d3702f7da5d9bf"
+source = "git+https://version.aalto.fi/gitlab/platsec/attestation/trustmee-verification-library.git?branch=trustee-compatible#ededadb06ff957169be432f6f1d3702f7da5d9bf"
 dependencies = [
  "anyhow",
  "clap",

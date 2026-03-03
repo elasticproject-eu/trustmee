@@ -71,7 +71,7 @@ csv-rs = { git = "https://github.com/openanolis/csv-rs", rev = "b67a07e", option
     "network",
 ] }
 eventlog = { path = "../eventlog", optional = true }
-wasm-verification-component = { git = "https://version.aalto.fi/gitlab/platsec/attestation/trustmee-verification-library.git", branch = "main", optional = true }
+wasm-verification-component = { git = "https://version.aalto.fi/gitlab/platsec/attestation/trustmee-verification-library.git", branch = "trustee-compatible", optional = true }
 hex.workspace = true
 jsonwebkey = "0.4.0"
 jsonwebtoken = { workspace = true, default-features = false, optional = true }
