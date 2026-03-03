@@ -20,8 +20,8 @@ It includes both TDX and SNP examples.
 
 Build your TDX and SNP Wasm components or use the availible ones at the following path:
 
-- `deps/wasm-verification-component/test_data/tdx_verifier_component.wasm`
-- `deps/wasm-verification-component/test_data/snp_verifier_component.wasm`
+- `deps/verifier/src/wasm_verification_component/test_assets/test_data/tdx_verifier_component.wasm`
+- `deps/verifier/src/wasm_verification_component/test_assets/test_data/snp_verifier_component.wasm`
 
 ## 2) Start AS using existing compose files
 
@@ -72,7 +72,7 @@ Register TDX Wasm component:
 
 ```bash
 # Avoid "Argument list too long" by streaming into jq
-b64url_file deps/wasm-verification-component/test_data/tdx_verifier_component.wasm \
+b64url_file deps/verifier/src/wasm_verification_component/test_assets/test_data/tdx_verifier_component.wasm \
   | jq -Rs '{component: .}' > /tmp/register-tdx-grpc.json
 
 grpcurl_docker attestation.AttestationService/RegisterComponent \
@@ -124,7 +124,7 @@ jq -r '.attestationToken // .attestation_token' /tmp/attest-tdx-grpc-resp.json >
 Register SNP Wasm component:
 
 ```bash
-b64url_file deps/wasm-verification-component/test_data/snp_verifier_component.wasm \
+b64url_file deps/verifier/src/wasm_verification_component/test_assets/test_data/snp_verifier_component.wasm \
   | jq -Rs '{component: .}' > /tmp/register-snp-grpc.json
 
 grpcurl_docker attestation.AttestationService/RegisterComponent \

@@ -50,6 +50,7 @@ pub mod intel_dcap;
 pub mod tpm;
 
 #[cfg(feature = "wasm-verification-component-driver")]
+#[path = "wasm_verification_component/mod.rs"]
 pub mod wasm_verification_component_driver;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]

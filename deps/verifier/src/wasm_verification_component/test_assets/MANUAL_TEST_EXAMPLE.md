@@ -19,8 +19,8 @@ It includes both TDX and SNP examples.
 
 Build your TDX and SNP Wasm components or use the availible ones at the following path:
 
-- `deps/wasm-verification-component/test_data/tdx_verifier_component.wasm`
-- `deps/wasm-verification-component/test_data/snp_verifier_component.wasm`
+- `deps/verifier/src/wasm_verification_component/test_assets/test_data/tdx_verifier_component.wasm`
+- `deps/verifier/src/wasm_verification_component/test_assets/test_data/snp_verifier_component.wasm`
 
 ## 2) Start attestation-service (REST)
 
@@ -79,9 +79,8 @@ cp deps/verifier/test_data/tdx_quote.bin /tmp/tdx_quote.bin
 Register TDX Wasm component:
 
 ```bash
-jq -n \
-  --arg component "$(b64url_file deps/wasm-verification-component/test_data/tdx_verifier_component.wasm)" \
-  '{component: $component}' > /tmp/register-tdx.json
+b64url_file deps/verifier/src/wasm_verification_component/test_assets/test_data/tdx_verifier_component.wasm \
+  | jq -Rs '{component: .}' > /tmp/register-tdx.json
 
 curl -sS -X POST http://127.0.0.1:8080/component \
   -H 'Content-Type: application/json' \
@@ -132,9 +131,8 @@ curl -sS -X POST http://127.0.0.1:8080/attestation \
 Register SNP Wasm component:
 
 ```bash
-jq -n \
-  --arg component "$(b64url_file deps/wasm-verification-component/test_data/snp_verifier_component.wasm)" \
-  '{component: $component}' > /tmp/register-snp.json
+b64url_file deps/verifier/src/wasm_verification_component/test_assets/test_data/snp_verifier_component.wasm \
+  | jq -Rs '{component: .}' > /tmp/register-snp.json
 
 curl -sS -X POST http://127.0.0.1:8080/component \
   -H 'Content-Type: application/json' \

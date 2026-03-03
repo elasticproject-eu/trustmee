@@ -2,7 +2,6 @@
 members = [
     "kbs",
     "attestation-service",
-    "deps/wasm-verification-component",
     "rvps",
     "tools/kbs-client",
     "deps/verifier",
