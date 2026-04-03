@@ -119,7 +119,7 @@ Supported Verifier Drivers:
 - `se`: Verifier Driver for IBM Secure Execution (SE).
 - `nvidia`: Verifier Driver for NVIDIA Devices.
 - `tpm`: Verifier Driver for Trusted Platform Module (TPM)
-- `wasm-verification-component`: Optional backend that uses Wasm verification component.
+- `wasm-verification-component`: Optional backend that uses Wasm verification component for TrustMee CMW input.
 > [!WARNING]  
 > **TPM Device Note**: TPM devices (except Azure vTPM series) are not bound to TEE endorsement.
 > When using TPM as a standalone attestation device (not integrated with Azure vTPM), you must ensure that you
@@ -138,25 +138,22 @@ The AS supports a different set of verifier drivers based on the target architec
 
 Use request-level selection instead of configuration:
 
-1. Set request field `verifier` to `wasm-verification-component`
-2. Keep `tee` as your logical TEE type (`tdx`, `snp`, `sgx`, etc.)
-3. Register the wasm verifier component first via `POST /component` with base64(URL_SAFE_NO_PAD) component bytes.
-4. Put the returned `component_id` and nested tee evidence in the `evidence` payload:
+1. Set request field `tee` to the real target TEE such as `snp`, `tdx`, or `sgx`
+2. Set request field `verifier` to `wasm-verification-component`
+3. Set request field `evidence` to base64(URL_SAFE_NO_PAD) of the raw TrustMee CMW bytes
+4. The CMW Evidence entry must contain a TrustMee-profile EAT, and endorsements may staple the Wasm verifier component and collateral
 
 ```json
-{
-  "component_id": "component-<sha256>",
-  "evidence": {
-    "...": "tee specific evidence JSON"
-  },
-  "pccs_url": "https://your-pccs.example.com",
-  "tee_class": "cpu"
-}
+"<base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes>"
 ```
 
-Cache location is host-managed (not request-managed). AS creates per-component cache folders under a base directory using `component_id`.
+The `/component` registration endpoint is removed. Requests that omit `verifier` (or set `verifier = "native"`) continue to use native verifier drivers.
+
+Cache location is host-managed. AS keeps Wasm verification cache data under the configured cache base directory.
 
 If `verifier` is omitted (or set to `native`), AS uses native verifier drivers as before.
+
+Wasm-backed verification now emits claims under the real tee key in the attestation token, so existing hardware-specific policy surfaces such as `input.snp` and `input.tdx` remain usable.
 
 ### Policy Engine
 

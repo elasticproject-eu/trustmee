@@ -50,17 +50,6 @@ pub struct AttestationRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RegisterComponentRequest {
-    /// Base64 encoded Wasm component bytes (URL_SAFE_NO_PAD alphabet).
-    component: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct RegisterComponentResponse {
-    component_id: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct IndividualAttestationRequest {
     tee: String,
     evidence: String,
@@ -152,30 +141,27 @@ fn parse_verifier(verifier: Option<&str>) -> anyhow::Result<InnerVerifierType> {
     }
 }
 
-/// Register a wasm verification component and return a stable component_id.
-#[instrument(skip_all, fields(request_id = tracing::field::Empty))]
-pub async fn register_component(
-    request: web::Json<RegisterComponentRequest>,
-    cocoas: web::Data<Arc<RwLock<AttestationService>>>,
-) -> Result<HttpResponse> {
-    let request_id = Uuid::new_v4().to_string();
-    Span::current().record("request_id", tracing::field::display(&request_id));
-    info!("RegisterComponent API called.");
+fn validate_verifier_for_tee(tee: Tee, verifier: InnerVerifierType) -> anyhow::Result<()> {
+    let _ = (tee, verifier);
+    Ok(())
+}
 
-    let request = request.into_inner();
-    let component_bytes = URL_SAFE_NO_PAD
-        .decode(&request.component)
-        .context("base64 decode component bytes")?;
+fn parse_evidence(verifier: InnerVerifierType, evidence: &str) -> Result<Value> {
+    let evidence_bytes = URL_SAFE_NO_PAD
+        .decode(evidence)
+        .context("base64 decode evidence")?;
 
-    let component_id = cocoas
-        .read()
-        .await
-        .register_wasm_component(&component_bytes)
-        .await
-        .context("register wasm component")?;
+    if matches!(verifier, InnerVerifierType::WasmVerificationComponent) {
+        return Ok(Value::String(URL_SAFE_NO_PAD.encode(evidence_bytes)));
+    }
 
-    info!(component_id = component_id, "RegisterComponent succeeded.");
-    Ok(HttpResponse::Ok().json(RegisterComponentResponse { component_id }))
+    let evidence =
+        serde_json::from_slice(&evidence_bytes).context("failed to parse evidence as JSON")?;
+    Ok(evidence)
+}
+
+fn ensure_challenge_supported_tee(_tee: Tee) -> anyhow::Result<()> {
+    Ok(())
 }
 
 /// This handler uses json extractor
@@ -193,14 +179,10 @@ pub async fn attestation(
 
     let mut verification_requests: Vec<VerificationRequest> = vec![];
     for attestation_request in request.verification_requests {
-        let evidence = URL_SAFE_NO_PAD
-            .decode(&attestation_request.evidence)
-            .context("base64 decode evidence")?;
-
-        let evidence =
-            serde_json::from_slice(&evidence).context("failed to parse evidence as JSON")?;
-
         let tee = to_tee(&attestation_request.tee)?;
+        let verifier = parse_verifier(attestation_request.verifier.as_deref())?;
+        validate_verifier_for_tee(tee, verifier)?;
+        let evidence = parse_evidence(verifier, &attestation_request.evidence)?;
 
         let runtime_data = attestation_request
             .runtime_data
@@ -222,8 +204,6 @@ pub async fn attestation(
                 HashAlgorithm::Sha384
             }
         };
-        let verifier = parse_verifier(attestation_request.verifier.as_deref())?;
-
         verification_requests.push(VerificationRequest {
             evidence,
             tee,
@@ -304,6 +284,7 @@ pub async fn get_challenge(
         .ok_or(anyhow!("Failed to get inner tee_params"))?;
 
     let tee = to_tee(inner_tee)?;
+    ensure_challenge_supported_tee(tee).map_err(Error::from)?;
     let challenge = cocoas
         .read()
         .await
@@ -370,4 +351,57 @@ pub async fn get_policies(
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemovePolicyRequest {
     pub policy_ids: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        ensure_challenge_supported_tee, parse_evidence, parse_verifier, to_tee,
+        validate_verifier_for_tee,
+    };
+    use attestation_service::VerifierType as InnerVerifierType;
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+    use kbs_types::Tee;
+    use serde_json::json;
+
+    #[test]
+    fn trustmee_tee_is_rejected_for_attestation_requests() {
+        let err = to_tee("trustmee").expect_err("trustmee must be rejected");
+        assert!(
+            format!("{err:#}").contains("not supported"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    #[test]
+    fn wasm_backend_is_accepted_for_non_trustmee_tees() {
+        validate_verifier_for_tee(Tee::Snp, InnerVerifierType::WasmVerificationComponent)
+            .expect("snp should accept wasm backend");
+    }
+
+    #[test]
+    fn parse_wasm_evidence_keeps_raw_bytes_base64url_encoded() {
+        let parsed = parse_evidence(InnerVerifierType::WasmVerificationComponent, "Zm9v")
+            .expect("parse wasm evidence");
+        assert_eq!(parsed, json!("Zm9v"));
+    }
+
+    #[test]
+    fn parse_native_evidence_keeps_json_shape() {
+        let encoded = URL_SAFE_NO_PAD.encode(br#"{"quote":"Zm9v"}"#);
+        let parsed =
+            parse_evidence(InnerVerifierType::Native, &encoded).expect("parse native evidence");
+        assert_eq!(parsed, json!({"quote": "Zm9v"}));
+    }
+
+    #[test]
+    fn non_trustmee_challenge_requests_are_still_supported() {
+        ensure_challenge_supported_tee(Tee::Snp).expect("snp challenge request should work");
+    }
+
+    #[test]
+    fn wasm_alias_is_accepted_for_non_trustmee_tees() {
+        let verifier = parse_verifier(Some("wasm")).expect("parse wasm alias");
+        validate_verifier_for_tee(Tee::Snp, verifier).expect("snp should accept wasm alias");
+    }
 }

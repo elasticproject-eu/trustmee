@@ -184,7 +184,7 @@ Available when the `tdx-verifier`, `sgx-verifier`, or `az-tdx-vtpm-verifier` fea
 | `tpm_verifier` | Object                  | TPM verifier configuration                            | No       | -       |
 | `nvidia_verifier` | Object               | NVIDIA verifier configuration                         | No       | -       |
 
-For `wasm-verification-component`, no `verifier_config` is required. Register components via the component registration API and reference them by `component_id` in attestation requests.
+For `wasm-verification-component`, no `verifier_config` is required. Select this backend per request by setting `verifier = "wasm-verification-component"` (or `wasm`) and carrying raw TrustMee CMW bytes in the `evidence` field. The request `tee` remains the real target TEE such as `snp`, `tdx`, or `sgx`.
 
 #### Wasm Component Registry
 
@@ -192,8 +192,8 @@ For `wasm-verification-component`, no `verifier_config` is required. Register co
 
 | Property                     | Type    | Description                                                             | Required | Default |
 |-----------------------------|---------|-------------------------------------------------------------------------|----------|---------|
-| `verify_component_signature`| Boolean | Verify registrations with `wasmsign2 verify`.                          | No       | `false` |
-| `component_cache_base_dir`  | String  | Base directory for per-component collateral cache folders (`<base>/<component_id>`). | No | `.wasm-verification-component-cache/components` |
+| `verify_component_signature`| Boolean | Retained for compatibility. This field is ignored because component registration is no longer supported. | No | `false` |
+| `component_cache_base_dir`  | String  | Base directory for Wasm verification cache files used by Wasm-backed attestation requests. | No | `.wasm-verification-component-cache/components` |
 
 
 ## Configuration Examples
@@ -394,52 +394,22 @@ Configuration with Intel DCAP verifier (TDX/SGX):
     }
 }
 ```
-Register component first:
-
-```json
-{
-    "component": "<base64(URL_SAFE_NO_PAD) raw wasm component bytes>"
-}
-```
-
-API response:
-
-```json
-{
-    "component_id": "component-<sha256>"
-}
-```
-
-Then use `wasm-verification-component` at request level:
+Use `wasm-verification-component` only with TrustMee CMW input:
 
 ```json
 {
     "verification_requests": [{
-        "tee": "tdx",
+        "tee": "snp",
         "verifier": "wasm-verification-component",
-        "evidence": "<base64(URL_SAFE_NO_PAD) of the JSON below>"
+        "evidence": "<base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes>"
     }],
     "policy_ids": ["default"]
 }
 ```
 
-Decoded `evidence` JSON example:
-
-```json
-{
-    "component_id": "component-<sha256>",
-    "evidence": {
-        "quote": "...",
-        "cc_eventlog": "..."
-    },
-    "pccs_url": "https://your-pccs.example.com",
-    "tee_class": "cpu"
-}
-```
-
 Notes:
 1. `verifier` can be `native` (default) or `wasm-verification-component`.
-2. `tee` is still required and is used for token metadata/policy context.
-3. Attestation request should provide `component_id` (not wasm bytes) when using this backend.
-4. Cache location is host-managed. Each registered component gets its own cache directory under `component_cache_base_dir`.
-5. `evidence` inside wrapped JSON can contain any verifier-specific schema, so this path is not limited to TDX/SNP.
+2. When using the Wasm backend, `tee` must stay equal to the real target TEE claimed by the evidence.
+3. `evidence` is opaque raw CMW bytes at the service boundary. The service does not parse that payload as JSON before handing it to `trustmee-verification-library`.
+4. The TrustMee CMW may staple the Wasm verifier component and endorsement collateral. If it does not staple the verifier, the service relies on the TrustMee library's configured/default OCI lookup behavior.
+5. Wasm-backed verification emits claims under the real tee key in the attestation token, so existing hardware-specific policies can continue to evaluate `input.snp`, `input.tdx`, and similar claim paths.

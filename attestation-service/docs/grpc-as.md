@@ -14,6 +14,8 @@ Now the following types of evidence are supported:
 - `az-tdx-vtpm`: Azure TDX vTPM
 - `se`: IBM Secure Execution
 
+To use the Wasm verification component backend, set `verifier = "wasm-verification-component"` (or `wasm`) and provide base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes in `evidence`. The `tee` field must be the real target TEE such as `snp`, `tdx`, or `sgx`.
+
 ## Quick Start
 
 Users can use a [community version of gRPC CoCoAS image](https://github.com/confidential-containers/trustee/pkgs/container/staged-images%2Fcoco-as-grpc) to verify attestation reports.

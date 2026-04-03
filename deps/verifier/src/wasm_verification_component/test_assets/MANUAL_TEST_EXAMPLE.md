@@ -1,54 +1,49 @@
-# Manual Test Example (REST + Wasm Verification Component)
+# Manual Test Example (REST + TrustMee CMW)
 
-This guide runs the real attestation-service flow:
+This guide runs the current attestation-service Wasm flow:
 
-1. Build Wasm verifier components
-2. Start `restful-as`
-3. Register a Wasm component (`POST /component`)
-4. Send an attestation request (`POST /attestation`) that references `component_id`
+1. Start `restful-as` with the `wasm-verification-component-driver`
+2. Prepare a TrustMee CMW file
+3. Send one attestation request with the real target tee plus `verifier = "wasm-verification-component"`
 
-It includes both TDX and SNP examples.
+The Wasm backend no longer supports `/component` registration or the older wrapped JSON payload with `component_id`.
 
 ## Prerequisites
 
 - Run from repo root.
 - Tools: `cargo`, `jq`, `curl`, `base64`.
-- Network is required for TDX collateral fetch (unless already cached).
+- A TrustMee CMW file generated according to:
+  - `trustmee-verification-library/TRUSTMEE_EAT_PROFILE.md`
+  - `trustmee-verification-library/TRUSTMEE_CMW_COLLECTION_TYPE.md`
 
-## 1) Build verifier components
+The CMW may be JSON or CBOR. In both cases, the attestation request carries the raw CMW bytes as base64(URL_SAFE_NO_PAD).
 
-Build your TDX and SNP Wasm components or use the availible ones at the following path:
-
-- `deps/verifier/src/wasm_verification_component/test_assets/test_data/tdx_verifier_component.wasm`
-- `deps/verifier/src/wasm_verification_component/test_assets/test_data/snp_verifier_component.wasm`
-
-## 2) Start attestation-service (REST)
+## 1) Start attestation-service (REST)
 
 Create a local config so AS writes only under `/tmp`:
 
 ```bash
-cat > /tmp/as-wasm-manual-config.json <<'JSON'
+cat > /tmp/as-trustmee-manual-config.json <<'JSON'
 {
-  "work_dir": "/tmp/as-wasm-manual",
+  "work_dir": "/tmp/as-trustmee-manual",
   "rvps_config": {
     "type": "BuiltIn",
     "storage": {
       "type": "LocalFs",
-      "file_path": "/tmp/as-wasm-manual/reference_values"
+      "file_path": "/tmp/as-trustmee-manual/reference_values"
     }
   },
   "attestation_token_broker": {
-    "policy_dir": "/tmp/as-wasm-manual/policies"
+    "policy_dir": "/tmp/as-trustmee-manual/policies"
   },
   "wasm_component_registry": {
-    "verify_component_signature": false,
-    "component_cache_base_dir": "/tmp/as-wasm-manual/component-cache"
+    "component_cache_base_dir": "/tmp/as-trustmee-manual/component-cache"
   }
 }
 JSON
 ```
 
-Start RESTful AS (Terminal A):
+Start RESTful AS:
 
 ```bash
 RUST_LOG=info,restful_as=debug,attestation_service=info \
@@ -56,13 +51,11 @@ cargo run -p attestation-service \
   --no-default-features \
   --features "restful-bin,wasm-verification-component-driver" \
   --bin restful-as -- \
-  --config-file /tmp/as-wasm-manual-config.json \
+  --config-file /tmp/as-trustmee-manual-config.json \
   --socket 127.0.0.1:8080
 ```
 
-Use another terminal for requests (Terminal B).
-
-## 3) Helper for URL-safe base64 without padding
+## 2) Helper for URL-safe base64 without padding
 
 ```bash
 b64url_file() {
@@ -70,96 +63,13 @@ b64url_file() {
 }
 ```
 
-## 4) TDX flow
+## 3) Send a TrustMee attestation request
 
-```bash
-cp deps/verifier/test_data/tdx_quote.bin /tmp/tdx_quote.bin
-```
-
-Register TDX Wasm component:
-
-```bash
-b64url_file deps/verifier/src/wasm_verification_component/test_assets/test_data/tdx_verifier_component.wasm \
-  | jq -Rs '{component: .}' > /tmp/register-tdx.json
-
-curl -sS -X POST http://127.0.0.1:8080/component \
-  -H 'Content-Type: application/json' \
-  --data-binary @/tmp/register-tdx.json | tee /tmp/register-tdx-resp.json
-
-TDX_COMPONENT_ID="$(jq -r '.component_id' /tmp/register-tdx-resp.json)"
-echo "TDX_COMPONENT_ID=$TDX_COMPONENT_ID"
-```
-
-Build wrapped TDX evidence:
-
-```bash
-TDX_QUOTE_B64="$(base64 -w0 /tmp/tdx_quote.bin)"
-
-jq -n \
-  --arg component_id "$TDX_COMPONENT_ID" \
-  --arg quote "$TDX_QUOTE_B64" \
-  --arg pccs_url "${PCCS_URL:-}" \
-  '{
-     component_id: $component_id,
-     evidence: { quote: $quote },
-     tee_class: "cpu"
-   } + (if $pccs_url == "" then {} else { pccs_url: $pccs_url } end)' \
-  > /tmp/tdx-wasm-evidence-decoded.json
-```
-
-Build attestation request and call `/attestation`:
+Assume your TrustMee CMW is available at `/tmp/input.cmw`.
 
 ```bash
 jq -n \
-  --arg evidence "$(b64url_file /tmp/tdx-wasm-evidence-decoded.json)" \
-  '{
-     verification_requests: [{
-       tee: "tdx",
-       verifier: "wasm-verification-component",
-       evidence: $evidence
-     }],
-     policy_ids: ["default"]
-   }' > /tmp/attest-tdx.json
-
-curl -sS -X POST http://127.0.0.1:8080/attestation \
-  -H 'Content-Type: application/json' \
-  --data-binary @/tmp/attest-tdx.json | tee /tmp/attest-tdx-token.txt
-```
-
-## 5) SNP flow
-
-Register SNP Wasm component:
-
-```bash
-b64url_file deps/verifier/src/wasm_verification_component/test_assets/test_data/snp_verifier_component.wasm \
-  | jq -Rs '{component: .}' > /tmp/register-snp.json
-
-curl -sS -X POST http://127.0.0.1:8080/component \
-  -H 'Content-Type: application/json' \
-  --data-binary @/tmp/register-snp.json | tee /tmp/register-snp-resp.json
-
-SNP_COMPONENT_ID="$(jq -r '.component_id' /tmp/register-snp-resp.json)"
-echo "SNP_COMPONENT_ID=$SNP_COMPONENT_ID"
-```
-
-Wrap SNP evidence from sample JSON:
-
-```bash
-jq -n \
-  --arg component_id "$SNP_COMPONENT_ID" \
-  --slurpfile ev attestation-service/tests/e2e/evidence.json \
-  '{
-     component_id: $component_id,
-     evidence: $ev[0],
-     tee_class: "cpu"
-   }' > /tmp/snp-wasm-evidence-decoded.json
-```
-
-Build attestation request and call `/attestation`:
-
-```bash
-jq -n \
-  --arg evidence "$(b64url_file /tmp/snp-wasm-evidence-decoded.json)" \
+  --arg evidence "$(b64url_file /tmp/input.cmw)" \
   '{
      verification_requests: [{
        tee: "snp",
@@ -167,14 +77,16 @@ jq -n \
        evidence: $evidence
      }],
      policy_ids: ["default"]
-   }' > /tmp/attest-snp.json
+   }' > /tmp/attest-trustmee.json
 
 curl -sS -X POST http://127.0.0.1:8080/attestation \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/attest-snp.json | tee /tmp/attest-snp-token.txt
+  --data-binary @/tmp/attest-trustmee.json | tee /tmp/attest-trustmee-token.txt
 ```
 
-## 6) Notes
+## Notes
 
-- `component_id` is stable for identical Wasm bytes. Re-registering the same component returns the same ID.
-- Cache is host-managed under `component_cache_base_dir/<component_id>/...`.
+- `evidence` is the raw TrustMee CMW payload, not JSON.
+- The CMW must contain exactly one TrustMee-profile EAT Evidence item.
+- The CMW may staple the Wasm verifier component and endorsements. If it does not, the service falls back to the TrustMee library's OCI resolution behavior.
+- `tee` must stay equal to the real target TEE claimed by the wrapped evidence, such as `snp` or `tdx`.

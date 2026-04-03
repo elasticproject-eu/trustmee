@@ -522,4 +522,41 @@ mod tests {
 
         assert_json_eq!(expected_claims, transformed_claims);
     }
+
+    #[test]
+    fn test_transform_claims_with_wasm_metadata() {
+        let json = json!({
+            "measurement": "012345",
+            "reported_tcb_snp": 23,
+            "wasm_verification_component": {
+                "claims_type": "snp",
+                "verifier_component_sha256": "deadbeef"
+            },
+            "report_data": "abcdef",
+            "init_data": "fedcba"
+        });
+
+        let init_data_claims = Value::String("".to_string());
+        let runtime_data_claims = Value::String("".to_string());
+        let transformed_claims =
+            transform_claims(json, init_data_claims, runtime_data_claims, Tee::Snp)
+                .expect("flatten failed");
+
+        let expected_claims = json!({
+            "snp": {
+                "measurement": "012345",
+                "reported_tcb_snp": 23,
+                "wasm_verification_component": {
+                    "claims_type": "snp",
+                    "verifier_component_sha256": "deadbeef"
+                }
+            },
+            "report_data": "abcdef",
+            "init_data": "fedcba",
+            "runtime_data_claims": "",
+            "init_data_claims": ""
+        });
+
+        assert_json_eq!(expected_claims, transformed_claims);
+    }
 }
