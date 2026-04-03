@@ -85,4 +85,4 @@ sev = { git = "https://github.com/virtee/sev", rev = "d487809188c3c92e397bc92e2c
 sha2.workspace = true
 tempfile.workspace = true
 testing_logger = "0.1.1"
-wasm-verification-component = { path = "../../trustmee-verification-library" }
+wasm-verification-component = { git = "https://github.com/elasticproject-eu/trustmee-lib.git" }
