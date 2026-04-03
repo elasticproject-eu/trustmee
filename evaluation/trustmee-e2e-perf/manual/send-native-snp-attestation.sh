@@ -15,7 +15,7 @@ the generated artifacts plus the returned token.
 
 Defaults:
   --port       8080
-  --evidence   trustmee-verification-library/test_data/snp_evidence.json
+  --evidence   test_data/trustmee-lib/snp_evidence.json
   --output-dir evaluation/trustmee-e2e-perf/results/manual/native-snp-request-<timestamp>
 EOF
 }

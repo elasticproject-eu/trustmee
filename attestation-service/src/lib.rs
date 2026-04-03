@@ -612,33 +612,24 @@ mod tests {
     }
 
     #[cfg(feature = "wasm-verification-component-driver")]
-    fn trustmee_library_root() -> PathBuf {
+    fn trustmee_test_data_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("platform-agnostic-attestation-verification root")
-            .parent()
-            .expect("trustmee2 root")
-            .join("trustmee-verification-library")
+            .join("test_data")
+            .join("trustmee-lib")
     }
 
     #[cfg(feature = "wasm-verification-component-driver")]
     fn snp_component_bytes() -> Vec<u8> {
-        fs::read(
-            trustmee_library_root()
-                .join("test_data")
-                .join("snp_verifier_host_crypto_component.wasm"),
-        )
-        .expect("read SNP verifier component bytes")
+        fs::read(trustmee_test_data_root().join("snp_verifier_host_crypto_component.wasm"))
+            .expect("read SNP verifier component bytes")
     }
 
     #[cfg(feature = "wasm-verification-component-driver")]
     fn snp_report_and_collateral() -> (Vec<u8>, Vec<u8>) {
-        let bytes = fs::read(
-            trustmee_library_root()
-                .join("test_data")
-                .join("snp_evidence.json"),
-        )
-        .expect("read SNP evidence");
+        let bytes = fs::read(trustmee_test_data_root().join("snp_evidence.json"))
+            .expect("read SNP evidence");
         let parsed: SnpEvidence = serde_json::from_slice(&bytes).expect("parse SNP evidence");
         let cert_chain = parsed
             .cert_chain
@@ -833,22 +824,13 @@ mod tests {
 
     #[cfg(feature = "wasm-verification-component-driver")]
     fn tdx_component_bytes() -> Vec<u8> {
-        fs::read(
-            trustmee_library_root()
-                .join("test_data")
-                .join("tdx_verifier_component.wasm"),
-        )
-        .expect("read TDX verifier component bytes")
+        fs::read(trustmee_test_data_root().join("tdx_verifier_component.wasm"))
+            .expect("read TDX verifier component bytes")
     }
 
     #[cfg(feature = "wasm-verification-component-driver")]
     fn tdx_quote_bytes() -> Vec<u8> {
-        fs::read(
-            trustmee_library_root()
-                .join("test_data")
-                .join("tdx_quote.bin"),
-        )
-        .expect("read TDX quote")
+        fs::read(trustmee_test_data_root().join("tdx_quote.bin")).expect("read TDX quote")
     }
 
     #[cfg(feature = "wasm-verification-component-driver")]

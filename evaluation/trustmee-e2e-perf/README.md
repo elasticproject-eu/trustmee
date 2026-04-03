@@ -70,9 +70,9 @@ By default the benchmark runner uses:
 
 - `20` measured iterations
 - `3` warmup requests
-- `trustmee-verification-library/test_data/snp_evidence.json`
-- `trustmee-verification-library/test_data/snp_verifier_component.wasm`
-- `trustmee-verification-library/test_data/snp_verifier_host_crypto_component.wasm`
+- `test_data/trustmee-lib/snp_evidence.json`
+- `test_data/trustmee-lib/snp_verifier_component.wasm`
+- `test_data/trustmee-lib/snp_verifier_host_crypto_component.wasm`
 
 Each run creates `results/<timestamp>/` with:
 
@@ -93,3 +93,5 @@ For the TrustMee Wasm scenarios, the benchmark runner generates two request vari
 - Fresh-process scenarios exclude service startup and readiness wait time from the recorded
   latency.
 - The default SNP sample evidence includes `cert_chain`, so the default runs stay offline.
+- The default TrustMee sample assets are vendored under `test_data/trustmee-lib/`, so the
+  helpers keep working even if the sibling `trustmee-verification-library/` checkout is removed.
