@@ -16,13 +16,12 @@ trustmee_e2e_perf_script_dir() {
 readonly TRUSTMEE_E2E_PERF_LIB_DIR="$(trustmee_e2e_perf_script_dir)"
 readonly TRUSTMEE_E2E_PERF_ROOT="$(cd "$TRUSTMEE_E2E_PERF_LIB_DIR/.." && pwd)"
 readonly TRUSTMEE_REPO_ROOT="$(cd "$TRUSTMEE_E2E_PERF_ROOT/../.." && pwd)"
-readonly TRUSTMEE_WORKSPACE_ROOT="$(cd "$TRUSTMEE_REPO_ROOT/.." && pwd)"
-readonly TRUSTMEE_LIBRARY_ROOT="$TRUSTMEE_WORKSPACE_ROOT/trustmee-verification-library"
+readonly TRUSTMEE_TEST_DATA_ROOT="$TRUSTMEE_REPO_ROOT/test_data/trustmee-lib"
 readonly DEFAULT_POLICY_SOURCE_DIR="$TRUSTMEE_REPO_ROOT/attestation-service/tests/coco-as/policy"
 readonly DEFAULT_RESULTS_ROOT="$TRUSTMEE_E2E_PERF_ROOT/results"
-readonly DEFAULT_SNP_EVIDENCE_PATH="$TRUSTMEE_LIBRARY_ROOT/test_data/snp_evidence.json"
-readonly DEFAULT_SNP_WASM_COMPONENT_PATH="$TRUSTMEE_LIBRARY_ROOT/test_data/snp_verifier_component.wasm"
-readonly DEFAULT_SNP_WASM_HOST_CRYPTO_COMPONENT_PATH="$TRUSTMEE_LIBRARY_ROOT/test_data/snp_verifier_host_crypto_component.wasm"
+readonly DEFAULT_SNP_EVIDENCE_PATH="$TRUSTMEE_TEST_DATA_ROOT/snp_evidence.json"
+readonly DEFAULT_SNP_WASM_COMPONENT_PATH="$TRUSTMEE_TEST_DATA_ROOT/snp_verifier_component.wasm"
+readonly DEFAULT_SNP_WASM_HOST_CRYPTO_COMPONENT_PATH="$TRUSTMEE_TEST_DATA_ROOT/snp_verifier_host_crypto_component.wasm"
 readonly RESTFUL_AS_FEATURES="restful-bin,snp-verifier,wasm-verification-component-driver"
 readonly TRUSTMEE_EAT_PROFILE_URL="https://trustmee.invalid/eat/component-evidence"
 readonly TRUSTMEE_COLLECTION_TYPE_URL="https://trustmee.invalid/cmw/verification-input"
@@ -55,7 +54,7 @@ ensure_common_prereqs() {
     require_tool timeout
 
     [[ -d "$TRUSTMEE_REPO_ROOT" ]] || die "repo root not found: $TRUSTMEE_REPO_ROOT"
-    [[ -d "$TRUSTMEE_LIBRARY_ROOT" ]] || die "trustmee-verification-library not found: $TRUSTMEE_LIBRARY_ROOT"
+    [[ -d "$TRUSTMEE_TEST_DATA_ROOT" ]] || die "test data dir not found: $TRUSTMEE_TEST_DATA_ROOT"
     [[ -d "$DEFAULT_POLICY_SOURCE_DIR" ]] || die "policy source dir not found: $DEFAULT_POLICY_SOURCE_DIR"
 }
 

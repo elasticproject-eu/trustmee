@@ -15,8 +15,8 @@ the generated artifacts plus the returned token.
 
 Defaults:
   --port       8080
-  --component  trustmee-verification-library/test_data/snp_verifier_component.wasm
-  --evidence   trustmee-verification-library/test_data/snp_evidence.json
+  --component  test_data/trustmee-lib/snp_verifier_component.wasm
+  --evidence   test_data/trustmee-lib/snp_evidence.json
   --output-dir evaluation/trustmee-e2e-perf/results/manual/request-<timestamp>
   --unstapled  omit CMW `verifier` endorsement and rely on component cache / OCI
 EOF
