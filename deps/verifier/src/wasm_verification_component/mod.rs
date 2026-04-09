@@ -12,14 +12,14 @@ use crate::{InitDataHash, ReportData, TeeClass, TeeEvidence, TeeEvidenceParsedCl
 
 #[derive(Clone, Debug)]
 pub struct ComponentRegistryConfig {
-    pub verify_component_signature: bool,
+    pub component_trust_store: Option<PathBuf>,
     pub component_cache_base_dir: PathBuf,
 }
 
 impl Default for ComponentRegistryConfig {
     fn default() -> Self {
         Self {
-            verify_component_signature: false,
+            component_trust_store: None,
             component_cache_base_dir: default_component_cache_base_dir(),
         }
     }
@@ -72,6 +72,15 @@ fn current_driver_config() -> Result<ComponentRegistryConfig> {
     Ok(driver_config.clone())
 }
 
+fn verify_options_from_config(config: &ComponentRegistryConfig) -> VerifyOptions {
+    VerifyOptions {
+        cache_dir: config.component_cache_base_dir.clone(),
+        pccs_url: None,
+        component_repository_hint: None,
+        component_trust_store: config.component_trust_store.clone(),
+    }
+}
+
 fn cmw_from_evidence(evidence: TeeEvidence) -> Result<Vec<u8>> {
     let encoded = evidence.as_str().ok_or_else(|| {
         anyhow!(
@@ -107,12 +116,7 @@ impl Verifier for WasmVerificationComponentDriver {
         let cmw_bytes = cmw_from_evidence(evidence)?;
         let config = current_driver_config()?;
         let verifier = verifier_instance()?;
-
-        let options = VerifyOptions {
-            cache_dir: config.component_cache_base_dir,
-            pccs_url: None,
-            component_repository_hint: None,
-        };
+        let options = verify_options_from_config(&config);
 
         let expected_report_data = match expected_report_data {
             ReportData::Value(data) => Some(data.to_vec()),
@@ -144,9 +148,10 @@ impl Verifier for WasmVerificationComponentDriver {
 mod tests {
     use super::{
         cmw_from_evidence, default_component_cache_base_dir, default_tee_class,
-        ComponentRegistryConfig,
+        verify_options_from_config, ComponentRegistryConfig,
     };
     use serde_json::json;
+    use std::path::PathBuf;
 
     #[test]
     fn test_default_tee_class() {
@@ -162,9 +167,24 @@ mod tests {
     }
 
     #[test]
-    fn test_registry_config_defaults_signature_check_disabled() {
+    fn test_registry_config_defaults_trust_store_to_none() {
         let cfg = ComponentRegistryConfig::default();
-        assert!(!cfg.verify_component_signature);
+        assert!(cfg.component_trust_store.is_none());
+    }
+
+    #[test]
+    fn test_verify_options_from_config_passes_component_trust_store() {
+        let cfg = ComponentRegistryConfig {
+            component_trust_store: Some(PathBuf::from("/etc/trustmee/component-trust-store.json")),
+            component_cache_base_dir: PathBuf::from("/var/cache/trustmee-components"),
+        };
+
+        let options = verify_options_from_config(&cfg);
+
+        assert_eq!(options.cache_dir, cfg.component_cache_base_dir);
+        assert_eq!(options.component_trust_store, cfg.component_trust_store);
+        assert_eq!(options.pccs_url, None);
+        assert_eq!(options.component_repository_hint, None);
     }
 
     #[test]

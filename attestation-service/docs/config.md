@@ -192,7 +192,7 @@ For `wasm-verification-component`, no `verifier_config` is required. Select this
 
 | Property                     | Type    | Description                                                             | Required | Default |
 |-----------------------------|---------|-------------------------------------------------------------------------|----------|---------|
-| `verify_component_signature`| Boolean | Retained for compatibility. This field is ignored because component registration is no longer supported. | No | `false` |
+| `component_trust_store`     | String  | Optional path to the JSON trust store used to validate signed Wasm verifier components. If unset, unsigned components still run with the library defaults and signed components are rejected. | No | - |
 | `component_cache_base_dir`  | String  | Base directory for Wasm verification cache files used by Wasm-backed attestation requests. | No | `.wasm-verification-component-cache/components` |
 
 

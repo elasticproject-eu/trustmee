@@ -149,9 +149,10 @@ impl AttestationService {
             if #[cfg(feature = "wasm-verification-component-driver")] {
                 verifier::wasm_verification_component_driver::configure_component_registry(
                     verifier::wasm_verification_component_driver::ComponentRegistryConfig {
-                        verify_component_signature: config
+                        component_trust_store: config
                             .wasm_component_registry
-                            .verify_component_signature,
+                            .component_trust_store
+                            .clone(),
                         component_cache_base_dir: config
                             .wasm_component_registry
                             .component_cache_base_dir
@@ -803,7 +804,7 @@ mod tests {
                 },
                 verifier_config: None,
                 wasm_component_registry: crate::config::WasmComponentRegistryConfig {
-                    verify_component_signature: false,
+                    component_trust_store: None,
                     component_cache_base_dir: cache_dir,
                 },
             },
