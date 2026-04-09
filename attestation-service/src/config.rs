@@ -18,9 +18,9 @@ fn default_component_cache_base_dir() -> PathBuf {
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct WasmComponentRegistryConfig {
-    /// Whether to verify component signatures with `wasmsign2` on registration.
+    /// Optional path to the JSON trust store used for signed verifier components.
     #[serde(default)]
-    pub verify_component_signature: bool,
+    pub component_trust_store: Option<PathBuf>,
 
     /// Base path for per-component collateral cache folders.
     #[serde(default = "default_component_cache_base_dir")]
@@ -30,7 +30,7 @@ pub struct WasmComponentRegistryConfig {
 impl Default for WasmComponentRegistryConfig {
     fn default() -> Self {
         Self {
-            verify_component_signature: false,
+            component_trust_store: None,
             component_cache_base_dir: default_component_cache_base_dir(),
         }
     }
@@ -54,7 +54,7 @@ pub struct Config {
     #[serde(default)]
     pub verifier_config: Option<VerifierConfig>,
 
-    /// Configuration for wasm component registration/lookup.
+    /// Configuration for wasm component lookup and execution.
     #[serde(default)]
     pub wasm_component_registry: WasmComponentRegistryConfig,
 }
@@ -167,6 +167,27 @@ mod tests {
         },
         verifier_config: None,
         wasm_component_registry: WasmComponentRegistryConfig::default(),
+    })]
+    #[case("./tests/configs/example3.json", Config {
+        work_dir: PathBuf::from("/var/lib/attestation-service/"),
+        rvps_config: RvpsConfig::BuiltIn(RvpsCrateConfig {
+            storage: ReferenceValueStorageConfig::LocalFs(local_fs::Config::default()),
+            extractors: None,
+        }),
+        attestation_token_broker: EarTokenConfiguration {
+            duration_min: 5,
+            issuer_name: "test".into(),
+            signer: None,
+            policy_dir: "/var/lib/attestation-service/policies".into(),
+            developer_name: "someone".into(),
+            build_name: "0.1.0".into(),
+            profile_name: "tag:github.com,2024:confidential-containers/Trustee".into()
+        },
+        verifier_config: None,
+        wasm_component_registry: WasmComponentRegistryConfig {
+            component_trust_store: Some("/etc/trustmee/component-trust-store.json".into()),
+            component_cache_base_dir: PathBuf::from(".wasm-verification-component-cache/components"),
+        },
     })]
     fn read_config(#[case] config: &str, #[case] expected: Config) {
         let config = std::fs::read_to_string(config).unwrap();

@@ -17,11 +17,14 @@ readonly TRUSTMEE_E2E_PERF_LIB_DIR="$(trustmee_e2e_perf_script_dir)"
 readonly TRUSTMEE_E2E_PERF_ROOT="$(cd "$TRUSTMEE_E2E_PERF_LIB_DIR/.." && pwd)"
 readonly TRUSTMEE_REPO_ROOT="$(cd "$TRUSTMEE_E2E_PERF_ROOT/../.." && pwd)"
 readonly TRUSTMEE_TEST_DATA_ROOT="$TRUSTMEE_REPO_ROOT/test_data/trustmee-lib"
+readonly TRUSTMEE_SIGNATURE_DEMO_ROOT="$TRUSTMEE_TEST_DATA_ROOT/signature-demo"
 readonly DEFAULT_POLICY_SOURCE_DIR="$TRUSTMEE_REPO_ROOT/attestation-service/tests/coco-as/policy"
 readonly DEFAULT_RESULTS_ROOT="$TRUSTMEE_E2E_PERF_ROOT/results"
 readonly DEFAULT_SNP_EVIDENCE_PATH="$TRUSTMEE_TEST_DATA_ROOT/snp_evidence.json"
 readonly DEFAULT_SNP_WASM_COMPONENT_PATH="$TRUSTMEE_TEST_DATA_ROOT/snp_verifier_component.wasm"
 readonly DEFAULT_SNP_WASM_HOST_CRYPTO_COMPONENT_PATH="$TRUSTMEE_TEST_DATA_ROOT/snp_verifier_host_crypto_component.wasm"
+readonly DEFAULT_SIGNED_SNP_WASM_COMPONENT_PATH="$TRUSTMEE_SIGNATURE_DEMO_ROOT/snp_verifier_component.signed.wasm"
+readonly DEFAULT_SIGNED_SNP_TRUST_STORE_PATH="$TRUSTMEE_SIGNATURE_DEMO_ROOT/snp_verifier_component.trust-store.json"
 readonly RESTFUL_AS_FEATURES="restful-bin,snp-verifier,wasm-verification-component-driver"
 readonly TRUSTMEE_EAT_PROFILE_URL="https://trustmee.invalid/eat/component-evidence"
 readonly TRUSTMEE_COLLECTION_TYPE_URL="https://trustmee.invalid/cmw/verification-input"
@@ -130,10 +133,12 @@ write_as_config() {
     local work_root="$1"
     local policy_source_dir="${2:-$DEFAULT_POLICY_SOURCE_DIR}"
     local component_cache_base_dir="${3:-}"
+    local component_trust_store="${4:-}"
     local abs_work_root
     abs_work_root="$(ensure_directory_absolute "$work_root")"
     local policy_dir="$abs_work_root/policy"
     local abs_component_cache_base_dir
+    local abs_component_trust_store=""
 
     copy_policy_bundle "$policy_source_dir" "$policy_dir"
     mkdir -p \
@@ -147,12 +152,17 @@ write_as_config() {
         mkdir -p "$abs_component_cache_base_dir"
     fi
 
+    if [[ -n "$component_trust_store" ]]; then
+        abs_component_trust_store="$(canonicalize_existing_path "$component_trust_store")"
+    fi
+
     local config_path="$abs_work_root/as-config.json"
     jq -n \
         --arg work_dir "$abs_work_root/work" \
         --arg rvps_path "$abs_work_root/reference_values" \
         --arg policy_dir "$policy_dir" \
         --arg component_cache_base_dir "$abs_component_cache_base_dir" \
+        --arg component_trust_store "$abs_component_trust_store" \
         '{
             work_dir: $work_dir,
             rvps_config: {
@@ -168,7 +178,12 @@ write_as_config() {
             wasm_component_registry: {
                 component_cache_base_dir: $component_cache_base_dir
             }
-        }' >"$config_path"
+        }
+        | if $component_trust_store != "" then
+            .wasm_component_registry.component_trust_store = $component_trust_store
+          else
+            .
+          end' >"$config_path"
 
     printf '%s\n' "$config_path"
 }
@@ -212,9 +227,10 @@ start_restful_as_background() {
     local log_file="$4"
     local policy_source_dir="${5:-$DEFAULT_POLICY_SOURCE_DIR}"
     local component_cache_base_dir="${6:-}"
+    local component_trust_store="${7:-}"
 
     local config_path
-    config_path="$(write_as_config "$work_root" "$policy_source_dir" "$component_cache_base_dir")"
+    config_path="$(write_as_config "$work_root" "$policy_source_dir" "$component_cache_base_dir" "$component_trust_store")"
     mkdir -p "$(dirname "$log_file")"
 
     (

@@ -93,5 +93,5 @@ For the TrustMee Wasm scenarios, the benchmark runner generates two request vari
 - Fresh-process scenarios exclude service startup and readiness wait time from the recorded
   latency.
 - The default SNP sample evidence includes `cert_chain`, so the default runs stay offline.
-- The default TrustMee sample assets are vendored under `test_data/trustmee-lib/`, so the
-  helpers keep working even if the sibling `trustmee-verification-library/` checkout is removed.
+- The default TrustMee sample assets, including the signed SNP demo assets, are vendored under
+  `test_data/trustmee-lib/`, so the helpers keep working even if sibling repos are not present.
