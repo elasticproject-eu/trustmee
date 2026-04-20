@@ -26,7 +26,10 @@ use tracing::{debug, info, warn};
 use crate::ear_token::EarTokenConfiguration;
 use crate::policy_engine::{PolicyEngine, PolicyEngineType};
 use crate::rvps::RvpsClient;
-use crate::TeeClaims;
+use crate::{is_trustmee_wasm_output_claims, TeeClaims};
+
+const DEFAULT_POLICY_ID: &str = "default";
+const DEFAULT_TRUSTMEE_POLICY_ID: &str = "default_trustmee";
 
 pub struct EarAttestationTokenBroker {
     config: EarTokenConfiguration,
@@ -59,6 +62,19 @@ impl EarAttestationTokenBroker {
 
         policy_engine
             .set_policy("default_gpu".to_string(), default_gpu_policy, false)
+            .await?;
+
+        let default_trustmee_cpu_policy =
+            include_str!("ear_default_policy_trustmee_cpu.rego").to_string();
+        let default_trustmee_cpu_policy =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(default_trustmee_cpu_policy);
+
+        policy_engine
+            .set_policy(
+                "default_trustmee_cpu".to_string(),
+                default_trustmee_cpu_policy,
+                false,
+            )
             .await?;
 
         if config.signer.is_none() {
@@ -119,6 +135,7 @@ impl EarAttestationTokenBroker {
         // Create an appraisal for each device
         for tee_claims in all_tee_claims {
             let mut appraisal = Appraisal::new();
+            let effective_policy_id = effective_policy_id(&policy_ids[0], &tee_claims.claims);
 
             let tcb_claims = transform_claims(
                 tee_claims.claims,
@@ -131,7 +148,7 @@ impl EarAttestationTokenBroker {
 
             // There is a policy for each tee class.
             // The cpu tee class is loaded as the default.
-            let policy_id = format!("{}_{}", policy_ids[0], tee_claims.tee_class);
+            let policy_id = format!("{}_{}", effective_policy_id, tee_claims.tee_class);
             let policy_results = self
                 .policy_engine
                 .evaluate(None, &tcb_claims_json, &policy_id, rvps_client.clone())
@@ -172,7 +189,7 @@ impl EarAttestationTokenBroker {
             appraisal.extensions = extensions;
 
             appraisal.annotated_evidence = tcb_claims;
-            appraisal.policy_id = Some(policy_ids[0].clone());
+            appraisal.policy_id = Some(effective_policy_id.to_string());
             appraisal.update_status_from_trust_vector();
 
             if let Some(index) = tee_class_indices.get_mut(&tee_claims.tee_class) {
@@ -244,6 +261,14 @@ impl EarAttestationTokenBroker {
             .get_policy(policy_id)
             .await
             .map_err(Error::from)
+    }
+}
+
+fn effective_policy_id<'a>(requested_policy_id: &'a str, claims: &Value) -> &'a str {
+    if requested_policy_id == DEFAULT_POLICY_ID && is_trustmee_wasm_output_claims(claims) {
+        DEFAULT_TRUSTMEE_POLICY_ID
+    } else {
+        requested_policy_id
     }
 }
 
@@ -526,12 +551,13 @@ mod tests {
     #[test]
     fn test_transform_claims_with_wasm_metadata() {
         let json = json!({
-            "measurement": "012345",
-            "reported_tcb_snp": 23,
-            "wasm_verification_component": {
-                "claims_type": "snp",
-                "verifier_component_sha256": "deadbeef"
+            "eat_profile": "https://trustmee.invalid/eat/verification-result",
+            "claims_type": "snp",
+            "claims": {
+                "measurement": "012345",
+                "reported_tcb_snp": 23
             },
+            "verifier_component_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             "report_data": "abcdef",
             "init_data": "fedcba"
         });
@@ -544,12 +570,13 @@ mod tests {
 
         let expected_claims = json!({
             "snp": {
-                "measurement": "012345",
-                "reported_tcb_snp": 23,
-                "wasm_verification_component": {
-                    "claims_type": "snp",
-                    "verifier_component_sha256": "deadbeef"
-                }
+                "eat_profile": "https://trustmee.invalid/eat/verification-result",
+                "claims_type": "snp",
+                "claims": {
+                    "measurement": "012345",
+                    "reported_tcb_snp": 23
+                },
+                "verifier_component_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             },
             "report_data": "abcdef",
             "init_data": "fedcba",
@@ -558,5 +585,46 @@ mod tests {
         });
 
         assert_json_eq!(expected_claims, transformed_claims);
+    }
+
+    #[test]
+    fn test_effective_policy_id_uses_trustmee_default_for_trustmee_claims() {
+        let policy_id = effective_policy_id(
+            "default",
+            &json!({
+                "eat_profile": "https://trustmee.invalid/eat/verification-result",
+                "claims_type": "snp",
+                "claims": {
+                    "measurement": "012345"
+                },
+                "verifier_component_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            }),
+        );
+
+        assert_eq!(policy_id, "default_trustmee");
+    }
+
+    #[test]
+    fn test_effective_policy_id_keeps_default_for_native_claims() {
+        let policy_id = effective_policy_id("default", &json!({"measurement": "012345"}));
+
+        assert_eq!(policy_id, "default");
+    }
+
+    #[test]
+    fn test_effective_policy_id_keeps_explicit_non_default_policy() {
+        let policy_id = effective_policy_id(
+            "custom-policy",
+            &json!({
+                "eat_profile": "https://trustmee.invalid/eat/verification-result",
+                "claims_type": "snp",
+                "claims": {
+                    "measurement": "012345"
+                },
+                "verifier_component_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            }),
+        );
+
+        assert_eq!(policy_id, "custom-policy");
     }
 }
