@@ -147,13 +147,13 @@ fn validate_verifier_for_tee(tee: Tee, verifier: InnerVerifierType) -> anyhow::R
 }
 
 fn parse_evidence(verifier: InnerVerifierType, evidence: &str) -> Result<Value> {
+    if matches!(verifier, InnerVerifierType::WasmVerificationComponent) {
+        return Ok(Value::String(evidence.to_string()));
+    }
+
     let evidence_bytes = URL_SAFE_NO_PAD
         .decode(evidence)
         .context("base64 decode evidence")?;
-
-    if matches!(verifier, InnerVerifierType::WasmVerificationComponent) {
-        return Ok(Value::String(URL_SAFE_NO_PAD.encode(evidence_bytes)));
-    }
 
     let evidence =
         serde_json::from_slice(&evidence_bytes).context("failed to parse evidence as JSON")?;
@@ -380,10 +380,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_wasm_evidence_keeps_raw_bytes_base64url_encoded() {
-        let parsed = parse_evidence(InnerVerifierType::WasmVerificationComponent, "Zm9v")
-            .expect("parse wasm evidence");
-        assert_eq!(parsed, json!("Zm9v"));
+    fn parse_wasm_evidence_passes_original_string_through() {
+        let parsed = parse_evidence(
+            InnerVerifierType::WasmVerificationComponent,
+            "not-decoded-here",
+        )
+        .expect("parse wasm evidence");
+        assert_eq!(parsed, json!("not-decoded-here"));
     }
 
     #[test]
