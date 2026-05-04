@@ -14,7 +14,7 @@ Now the following types of evidence are supported:
 - `az-tdx-vtpm`: Azure TDX vTPM
 - `se`: IBM Secure Execution
 
-To use the Wasm verification component backend, set `verifier = "wasm-verification-component"` (or `wasm`) and provide base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes in `evidence`. The `tee` field must be the real target TEE such as `snp`, `tdx`, or `sgx`.
+To use the Wasm verification component backend, set `tee = "sample"` and provide base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes in `evidence`. The verifier component reports the real TEE as `tee_type`.
 
 ## Quick Start
 
@@ -148,7 +148,7 @@ RESTful CoCo-AS's endpoints are as following:
     "verification_requests": [ // each JSON object is a single attestation request. All requests will be processed
                                // alltogether with the given policies.
         {
-            "tee": "sgx", // tee type. For Wasm-backed verification, keep this as the real target tee and set "verifier": "wasm-verification-component".
+            "tee": "sgx", // tee type. For Wasm-backed verification, use "sample".
             "evidence": "YWFhCg==...", // base64 encoded evidence in URL SAFE NO PAD,
             "runtime_data": {           // `runtime_data` is optional. If given, the runtime data binding will
                                         // be checked.
@@ -192,11 +192,8 @@ RESTful CoCo-AS's endpoints are as following:
             }, 
             "runtime_data_hash_algorithm": "sha384",// Hash algorithm used to calculate runtime data. Currently can be 
                                                     // "sha256", "sha384" or "sha512". If not specified, "sha384" will be selected.
-            "init_data_hash_algorithm": "sha384",   // Hash algorithm used to calculate init data. Currently can be 
+            "init_data_hash_algorithm": "sha384"    // Hash algorithm used to calculate init data. Currently can be 
                                                     // "sha256", "sha384" or "sha512". If not specified, "sha384" will be selected.
-            "verifier": "native"                    // Optional. Use "wasm-verification-component" or "wasm" to route this request
-                                                    // to the Wasm verification component backend while keeping `tee` equal
-                                                    // to the real target TEE.
         }
     ],
     "policy_ids": ["default", "policy-1"]           // List of IDs of the policy used to check evidence. If

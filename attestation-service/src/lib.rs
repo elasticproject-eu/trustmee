@@ -35,13 +35,6 @@ fn serialize_canon_json<T: Serialize>(value: T) -> Result<Vec<u8>> {
 pub type TeeEvidence = serde_json::Value;
 pub type TeeClass = String;
 
-#[derive(Clone, Copy, Debug, Default)]
-pub enum VerifierType {
-    #[default]
-    Native,
-    WasmVerificationComponent,
-}
-
 const TRUSTMEE_WASM_OUTPUT_EAT_PROFILE: &str = "https://trustmee.invalid/eat/verification-result";
 
 /// Tee Claims are the output of the verifier plus some metadata
@@ -128,8 +121,6 @@ pub struct VerificationRequest {
     /// The concrete way of checking is decide by the enum type. If this parameter is set `None`, the comparation
     /// will not be performed.
     pub init_data: Option<InitDataInput>,
-    /// Verifier implementation to use for this request.
-    pub verifier: VerifierType,
 }
 
 pub struct AttestationService {
@@ -219,13 +210,11 @@ impl AttestationService {
         }
 
         for verification_request in verification_requests {
+            let use_wasm_verification_component = matches!(verification_request.tee, Tee::Sample);
             let verifier = verifier::to_verifier(
                 &verification_request.tee,
                 self.config.clone().verifier_config,
-                matches!(
-                    verification_request.verifier,
-                    VerifierType::WasmVerificationComponent
-                ),
+                use_wasm_verification_component,
             )
             .await?;
 
@@ -254,19 +243,15 @@ impl AttestationService {
                 .map_err(|e| anyhow!("Verifier evaluate failed: {e:?}"))?;
 
             for (claims_from_tee_evidence, tee_class) in claims {
-                let claims_from_tee_evidence = match verification_request.verifier {
-                    VerifierType::Native => claims_from_tee_evidence,
-                    VerifierType::WasmVerificationComponent => {
-                        validate_wasm_verification_component_claims(
-                            verification_request.tee,
-                            claims_from_tee_evidence,
-                        )
+                let (tee, claims_from_tee_evidence) = if use_wasm_verification_component {
+                    validate_wasm_verification_component_claims(claims_from_tee_evidence)
                         .context("validate wasm-verification-component claims")?
-                    }
+                } else {
+                    (verification_request.tee, claims_from_tee_evidence)
                 };
 
                 info!(
-                    tee =? verification_request.tee,
+                    tee =? tee,
                     tee_class = tee_class,
                     "Verifier/endorsement check passed.",
                 );
@@ -278,7 +263,7 @@ impl AttestationService {
                     serde_json::to_string(&runtime_data_claims)?,
                 );
                 tee_claims.push(TeeClaims {
-                    tee: verification_request.tee,
+                    tee,
                     tee_class,
                     claims: claims_from_tee_evidence,
                     init_data_claims: init_data_claims.clone(),
@@ -392,14 +377,8 @@ fn parse_init_data(data: Option<InitDataInput>) -> Result<(Option<Vec<u8>>, Valu
 }
 
 pub(crate) fn is_trustmee_wasm_output_claims(claims: &Value) -> bool {
-    claims
-        .get("claims_type")
-        .and_then(Value::as_str)
-        .is_some()
-        && claims
-            .get("claims")
-            .map(Value::is_object)
-            .unwrap_or(false)
+    claims.get("tee_type").and_then(Value::as_str).is_some()
+        && claims.get("claims").map(Value::is_object).unwrap_or(false)
         && claims
             .get("verifier_component_sha256")
             .and_then(Value::as_str)
@@ -407,39 +386,23 @@ pub(crate) fn is_trustmee_wasm_output_claims(claims: &Value) -> bool {
 }
 
 fn validate_wasm_verification_component_claims(
-    tee: Tee,
     claims: TeeEvidenceParsedClaim,
-) -> Result<TeeEvidenceParsedClaim> {
+) -> Result<(Tee, TeeEvidenceParsedClaim)> {
     let claims_map = claims
         .as_object()
         .ok_or_else(|| anyhow!("wasm-verification-component claims must be a JSON object"))?;
 
-    let has_trustmee_envelope = claims_map.contains_key("claims");
-    if !has_trustmee_envelope {
-        return Ok(claims);
-    }
-
-    if let Some(eat_profile) = claims_map.get("eat_profile") {
-        let eat_profile = eat_profile.as_str().ok_or_else(|| {
-            anyhow!("wasm-verification-component claim `eat_profile` must be a string")
-        })?;
-        if eat_profile != TRUSTMEE_WASM_OUTPUT_EAT_PROFILE {
-            bail!(
-                "wasm-verification-component eat_profile `{eat_profile}` does not match expected TrustMee output profile `{TRUSTMEE_WASM_OUTPUT_EAT_PROFILE}`"
-            );
-        }
-    }
-    let claims_type = required_string_claim(claims_map, "claims_type")?;
-    let expected_claims_type = tee_name(tee);
-
-    if claims_type != expected_claims_type {
+    let eat_profile = required_string_claim(claims_map, "eat_profile")?;
+    if eat_profile != TRUSTMEE_WASM_OUTPUT_EAT_PROFILE {
         bail!(
-            "wasm-verification-component claims_type `{claims_type}` does not match request tee `{expected_claims_type}`"
+            "wasm-verification-component eat_profile `{eat_profile}` does not match expected TrustMee output profile `{TRUSTMEE_WASM_OUTPUT_EAT_PROFILE}`"
         );
     }
 
-    let verifier_component_sha256 =
-        required_string_claim(claims_map, "verifier_component_sha256")?;
+    let tee_type = required_string_claim(claims_map, "tee_type")?;
+    let tee = wasm_tee_from_name(tee_type)?;
+
+    let verifier_component_sha256 = required_string_claim(claims_map, "verifier_component_sha256")?;
     if !is_lower_hex_sha256(verifier_component_sha256) {
         bail!(
             "wasm-verification-component claim `verifier_component_sha256` must be a 64-character lowercase hex SHA-256 digest"
@@ -454,7 +417,7 @@ fn validate_wasm_verification_component_claims(
         anyhow!("wasm-verification-component claim `claims` must be a JSON object")
     })?;
 
-    Ok(claims)
+    Ok((tee, claims))
 }
 
 fn required_string_claim<'a>(
@@ -475,22 +438,22 @@ fn is_lower_hex_sha256(value: &str) -> bool {
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-fn tee_name(tee: Tee) -> &'static str {
+fn wasm_tee_from_name(tee: &str) -> Result<Tee> {
     match tee {
-        Tee::AzSnpVtpm => "az-snp-vtpm",
-        Tee::AzTdxVtpm => "az-tdx-vtpm",
-        Tee::Nvidia => "nvidia",
-        Tee::Sev => "sev",
-        Tee::Sgx => "sgx",
-        Tee::Snp => "snp",
-        Tee::Tdx => "tdx",
-        Tee::Cca => "cca",
-        Tee::Csv => "csv",
-        Tee::Se => "se",
-        Tee::HygonDcu => "hygondcu",
-        Tee::Tpm => "tpm",
-        Tee::Sample => "sample",
-        Tee::SampleDevice => "sampledevice",
+        "az-snp-vtpm" => Ok(Tee::AzSnpVtpm),
+        "az-tdx-vtpm" => Ok(Tee::AzTdxVtpm),
+        "nvidia" => Ok(Tee::Nvidia),
+        "sev" => Ok(Tee::Sev),
+        "sgx" => Ok(Tee::Sgx),
+        "snp" => Ok(Tee::Snp),
+        "tdx" => Ok(Tee::Tdx),
+        "cca" => Ok(Tee::Cca),
+        "csv" => Ok(Tee::Csv),
+        "se" => Ok(Tee::Se),
+        "hygondcu" => Ok(Tee::HygonDcu),
+        "tpm" => Ok(Tee::Tpm),
+        "sampledevice" => Ok(Tee::SampleDevice),
+        other => bail!("wasm-verification-component tee_type `{other}` is not supported"),
     }
 }
 
@@ -589,27 +552,25 @@ mod tests {
 
     #[test]
     fn validate_wasm_claims_keeps_trustmee_envelope() {
-        let validated = validate_wasm_verification_component_claims(
-            crate::Tee::Snp,
-            json!({
-                "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
-                "claims_type": "snp",
-                "claims": {
-                    "measurement": "012345",
-                    "reported_tcb_snp": 23
-                },
-                "report_data": "abcdef",
-                "init_data": "fedcba",
-                "verifier_component_sha256": TEST_SHA256
-            }),
-        )
+        let (tee, validated) = validate_wasm_verification_component_claims(json!({
+            "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
+            "tee_type": "snp",
+            "claims": {
+                "measurement": "012345",
+                "reported_tcb_snp": 23,
+            },
+            "report_data": "abcdef",
+            "init_data": "fedcba",
+            "verifier_component_sha256": TEST_SHA256
+        }))
         .expect("validate wasm claims");
 
+        assert_eq!(tee, crate::Tee::Snp);
         assert_json_eq!(
             validated,
             json!({
                 "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
-                "claims_type": "snp",
+                "tee_type": "snp",
                 "claims": {
                     "measurement": "012345",
                     "reported_tcb_snp": 23
@@ -622,44 +583,32 @@ mod tests {
     }
 
     #[test]
-    fn validate_wasm_claims_accepts_legacy_nested_shape_without_output_eat_profile() {
-        let validated = validate_wasm_verification_component_claims(
-            crate::Tee::Snp,
-            json!({
-                "claims_type": "snp",
-                "claims": {
-                    "measurement": "012345"
-                },
-                "verifier_component_sha256": TEST_SHA256
-            }),
-        )
-        .expect("legacy nested TrustMee output should be accepted");
+    fn validate_wasm_claims_rejects_missing_tee_type() {
+        let err = validate_wasm_verification_component_claims(json!({
+            "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
+            "claims": {
+                "measurement": "012345"
+            },
+            "verifier_component_sha256": TEST_SHA256
+        }))
+        .expect_err("missing tee_type should fail");
 
-        assert_json_eq!(
-            validated,
-            json!({
-                "claims_type": "snp",
-                "claims": {
-                    "measurement": "012345"
-                },
-                "verifier_component_sha256": TEST_SHA256
-            })
+        assert!(
+            format!("{err:#}").contains("tee_type"),
+            "unexpected error: {err:#}"
         );
     }
 
     #[test]
     fn validate_wasm_claims_rejects_wrong_output_eat_profile() {
-        let err = validate_wasm_verification_component_claims(
-            crate::Tee::Snp,
-            json!({
-                "eat_profile": "https://trustmee.invalid/eat/wrong-profile",
-                "claims_type": "snp",
-                "claims": {
-                    "measurement": "012345"
-                },
-                "verifier_component_sha256": TEST_SHA256
-            }),
-        )
+        let err = validate_wasm_verification_component_claims(json!({
+            "eat_profile": "https://trustmee.invalid/eat/wrong-profile",
+            "tee_type": "snp",
+            "claims": {
+                "measurement": "012345"
+            },
+            "verifier_component_sha256": TEST_SHA256
+        }))
         .expect_err("wrong output profile should fail");
 
         assert!(
@@ -669,39 +618,33 @@ mod tests {
     }
 
     #[test]
-    fn validate_wasm_claims_rejects_mismatched_requested_tee() {
-        let err = validate_wasm_verification_component_claims(
-            crate::Tee::Tdx,
-            json!({
-                "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
-                "claims_type": "snp",
-                "claims": {
-                    "measurement": "012345"
-                },
-                "verifier_component_sha256": TEST_SHA256
-            }),
-        )
-        .expect_err("mismatched tee should fail");
+    fn validate_wasm_claims_rejects_unsupported_tee_type() {
+        let err = validate_wasm_verification_component_claims(json!({
+            "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
+            "tee_type": "az-snp-vtpm",
+            "claims": {
+                "measurement": "012345"
+            },
+            "verifier_component_sha256": TEST_SHA256
+        }))
+        .expect_err("unsupported tee_type should fail");
 
         assert!(
-            format!("{err:#}").contains("does not match request tee"),
+            format!("{err:#}").contains("not supported"),
             "unexpected error: {err:#}"
         );
     }
 
     #[test]
     fn validate_wasm_claims_rejects_invalid_component_hash() {
-        let err = validate_wasm_verification_component_claims(
-            crate::Tee::Snp,
-            json!({
-                "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
-                "claims_type": "snp",
-                "claims": {
-                    "measurement": "012345"
-                },
-                "verifier_component_sha256": "deadbeef"
-            }),
-        )
+        let err = validate_wasm_verification_component_claims(json!({
+            "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
+            "tee_type": "snp",
+            "claims": {
+                "measurement": "012345"
+            },
+            "verifier_component_sha256": "deadbeef"
+        }))
         .expect_err("invalid component hash should fail");
 
         assert!(
@@ -711,26 +654,18 @@ mod tests {
     }
 
     #[test]
-    fn validate_wasm_claims_accepts_legacy_flat_output() {
-        let validated = validate_wasm_verification_component_claims(
-            crate::Tee::Snp,
-            json!({
-                "claims_type": "snp",
-                "measurement": "012345",
-                "reported_tcb_snp": 23,
-                "verifier_component_sha256": TEST_SHA256
-            }),
-        )
-        .expect("legacy flat output should still be accepted");
+    fn validate_wasm_claims_rejects_missing_nested_claims() {
+        let err = validate_wasm_verification_component_claims(json!({
+            "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
+            "tee_type": "snp",
+            "measurement": "012345",
+            "verifier_component_sha256": TEST_SHA256
+        }))
+        .expect_err("missing nested claims should fail");
 
-        assert_json_eq!(
-            validated,
-            json!({
-                "claims_type": "snp",
-                "measurement": "012345",
-                "reported_tcb_snp": 23,
-                "verifier_component_sha256": TEST_SHA256
-            })
+        assert!(
+            format!("{err:#}").contains("`claims`"),
+            "unexpected error: {err:#}"
         );
     }
 
@@ -964,8 +899,11 @@ mod tests {
             .as_object()
             .expect("snp annotated evidence must be an object");
 
-        assert_eq!(snp["claims_type"].as_str(), Some("snp"));
-        assert_eq!(snp["verifier_component_sha256"].as_str(), Some(expected_hash));
+        assert_eq!(snp["tee_type"].as_str(), Some("snp"));
+        assert_eq!(
+            snp["verifier_component_sha256"].as_str(),
+            Some(expected_hash)
+        );
         assert!(
             annotated_evidence["report_data"]
                 .as_str()
@@ -981,38 +919,27 @@ mod tests {
             "init_data should stay at the top level"
         );
 
-        if snp_claims.contains_key("claims") {
-            if snp.get("eat_profile").is_some() {
-                assert_eq!(
-                    snp["eat_profile"].as_str(),
-                    Some(TRUSTMEE_WASM_OUTPUT_EAT_PROFILE)
-                );
-            }
-            assert_eq!(snp["claims"]["reported_tcb_snp"], 23);
-            assert!(
-                snp["claims"]["measurement"]
-                    .as_str()
-                    .map(|value| !value.is_empty())
-                    .unwrap_or(false),
-                "nested measurement claim must be present"
-            );
-        } else {
-            assert!(snp.get("eat_profile").is_none());
-            assert_eq!(snp["reported_tcb_snp"], 23);
-            assert!(
-                snp["measurement"]
-                    .as_str()
-                    .map(|value| !value.is_empty())
-                    .unwrap_or(false),
-                "legacy measurement claim must be present"
-            );
-        }
+        let nested_claims = snp["claims"]
+            .as_object()
+            .expect("nested claims must be an object");
+        assert_eq!(
+            snp["eat_profile"].as_str(),
+            Some(TRUSTMEE_WASM_OUTPUT_EAT_PROFILE)
+        );
+        assert_eq!(snp["claims"]["reported_tcb_snp"], 23);
+        assert!(
+            snp["claims"]["measurement"]
+                .as_str()
+                .map(|value| !value.is_empty())
+                .unwrap_or(false),
+            "nested measurement claim must be present"
+        );
 
         assert!(snp.get("wasm_verification_component").is_none());
     }
 
     #[cfg(feature = "wasm-verification-component-driver")]
-    async fn evaluate_wasm_cmw(cmw: Vec<u8>, tee: crate::Tee) -> String {
+    async fn evaluate_wasm_cmw(cmw: Vec<u8>) -> String {
         let (_tempdir, config) = trustmee_test_config();
         let service = crate::AttestationService::new(config)
             .await
@@ -1022,11 +949,10 @@ mod tests {
             .evaluate(
                 vec![crate::VerificationRequest {
                     evidence: Value::String(URL_SAFE_NO_PAD.encode(cmw)),
-                    tee,
+                    tee: crate::Tee::Sample,
                     runtime_data: None,
                     runtime_data_hash_algorithm: crate::HashAlgorithm::Sha384,
                     init_data: None,
-                    verifier: crate::VerifierType::WasmVerificationComponent,
                 }],
                 vec!["default".into()],
             )
@@ -1061,7 +987,7 @@ mod tests {
             ],
         );
 
-        let token = evaluate_wasm_cmw(cmw, crate::Tee::Snp).await;
+        let token = evaluate_wasm_cmw(cmw).await;
         let payload = decode_jwt_payload(&token);
 
         assert!(
@@ -1098,7 +1024,7 @@ mod tests {
             ],
         );
 
-        let token = evaluate_wasm_cmw(cmw, crate::Tee::Snp).await;
+        let token = evaluate_wasm_cmw(cmw).await;
         let payload = decode_jwt_payload(&token);
 
         assert!(
@@ -1111,7 +1037,7 @@ mod tests {
     #[cfg(feature = "wasm-verification-component-driver")]
     #[tokio::test]
     #[ignore = "requires Intel collateral connectivity or a pre-populated cache"]
-    async fn wasm_json_tdx_cmw_evaluation_returns_tdx_claims_type() {
+    async fn wasm_json_tdx_cmw_evaluation_returns_tdx_tee_type() {
         let component_bytes = tdx_component_bytes();
         let expected_hash = hex::encode(sha2::Sha256::digest(&component_bytes));
         let component_id = component_id_for_component_bytes(&component_bytes);
@@ -1129,27 +1055,20 @@ mod tests {
             )],
         );
 
-        let token = evaluate_wasm_cmw(cmw, crate::Tee::Tdx).await;
+        let token = evaluate_wasm_cmw(cmw).await;
         let payload = decode_jwt_payload(&token);
         let tdx = &payload["submods"]["cpu0"]["ear.veraison.annotated-evidence"]["tdx"];
 
-        assert_eq!(tdx["claims_type"].as_str(), Some("tdx"));
+        assert_eq!(tdx["tee_type"].as_str(), Some("tdx"));
         assert_eq!(
             tdx["verifier_component_sha256"].as_str(),
             Some(expected_hash.as_str())
         );
 
-        if tdx.get("claims").is_some() {
-            if tdx.get("eat_profile").is_some() {
-                assert_eq!(
-                    tdx["eat_profile"].as_str(),
-                    Some(TRUSTMEE_WASM_OUTPUT_EAT_PROFILE)
-                );
-            }
-            assert!(tdx["claims"].get("quote").is_some());
-        } else {
-            assert!(tdx.get("eat_profile").is_none());
-            assert!(tdx.get("quote").is_some());
-        }
+        assert_eq!(
+            tdx["eat_profile"].as_str(),
+            Some(TRUSTMEE_WASM_OUTPUT_EAT_PROFILE)
+        );
+        assert!(tdx["claims"].get("quote").is_some());
     }
 }

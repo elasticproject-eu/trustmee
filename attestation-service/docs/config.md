@@ -184,7 +184,7 @@ Available when the `tdx-verifier`, `sgx-verifier`, or `az-tdx-vtpm-verifier` fea
 | `tpm_verifier` | Object                  | TPM verifier configuration                            | No       | -       |
 | `nvidia_verifier` | Object               | NVIDIA verifier configuration                         | No       | -       |
 
-For `wasm-verification-component`, no `verifier_config` is required. Select this backend per request by setting `verifier = "wasm-verification-component"` (or `wasm`) and carrying raw TrustMee CMW bytes in the `evidence` field. The request `tee` remains the real target TEE such as `snp`, `tdx`, or `sgx`.
+For `wasm-verification-component`, no `verifier_config` is required. Select this backend per request by setting `tee = "sample"` and carrying raw TrustMee CMW bytes in the `evidence` field. The verifier component reports the real TEE as `tee_type`.
 
 #### Wasm Component Registry
 
@@ -399,8 +399,7 @@ Use `wasm-verification-component` only with TrustMee CMW input:
 ```json
 {
     "verification_requests": [{
-        "tee": "snp",
-        "verifier": "wasm-verification-component",
+        "tee": "sample",
         "evidence": "<base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes>"
     }],
     "policy_ids": ["default"]
@@ -408,8 +407,7 @@ Use `wasm-verification-component` only with TrustMee CMW input:
 ```
 
 Notes:
-1. `verifier` can be `native` (default) or `wasm-verification-component`.
-2. When using the Wasm backend, `tee` must stay equal to the real target TEE claimed by the evidence.
-3. `evidence` is opaque raw CMW bytes at the service boundary. The service does not parse that payload as JSON before handing it to `trustmee-verification-library`.
-4. The TrustMee CMW may staple the Wasm verifier component and endorsement collateral. If it does not staple the verifier, the service relies on the TrustMee library's configured/default OCI lookup behavior.
-5. Wasm-backed verification emits claims under the real tee key in the attestation token, so existing hardware-specific policies can continue to evaluate `input.snp`, `input.tdx`, and similar claim paths.
+1. `tee = "sample"` selects the Wasm backend.
+2. `evidence` is opaque raw CMW bytes at the service boundary. The service does not parse that payload as JSON before handing it to `trustmee-verification-library`.
+3. The TrustMee CMW may staple the Wasm verifier component and endorsement collateral. If it does not staple the verifier, the service relies on the TrustMee library's configured/default OCI lookup behavior.
+4. Wasm-backed verification emits `tee_type`, and AS places claims under that real tee key in the attestation token, so existing hardware-specific policies can continue to evaluate `input.snp`, `input.tdx`, and similar claim paths.

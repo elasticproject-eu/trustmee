@@ -14,7 +14,7 @@ Now the following types of evidence are supported:
 - `az-tdx-vtpm`: Azure TDX vTPM
 - `se`: IBM Secure Execution
 
-To use the Wasm verification component backend, set `verifier = "wasm-verification-component"` (or `wasm`) and provide base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes in `evidence`. The `tee` field must be the real target TEE such as `snp`, `tdx`, or `sgx`.
+To use the Wasm verification component backend, set `tee = "sample"` and provide base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes in `evidence`. The verifier component reports the real TEE as `tee_type`.
 
 ## Quick Start
 

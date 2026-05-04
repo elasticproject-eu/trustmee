@@ -313,8 +313,7 @@ write_trustmee_request_artifacts() {
         --rawfile evidence "$output_dir/input.cmw.b64" \
         '{
             verification_requests: [{
-                tee: "snp",
-                verifier: "wasm-verification-component",
+                tee: "sample",
                 evidence: $evidence
             }],
             policy_ids: ["default"]
@@ -336,7 +335,6 @@ write_native_snp_request_artifacts() {
         '{
             verification_requests: [{
                 tee: "snp",
-                verifier: "native",
                 evidence: $evidence
             }],
             policy_ids: ["default"]

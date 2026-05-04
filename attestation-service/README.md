@@ -138,22 +138,19 @@ The AS supports a different set of verifier drivers based on the target architec
 
 Use request-level selection instead of configuration:
 
-1. Set request field `tee` to the real target TEE such as `snp`, `tdx`, or `sgx`
-2. Set request field `verifier` to `wasm-verification-component`
-3. Set request field `evidence` to base64(URL_SAFE_NO_PAD) of the raw TrustMee CMW bytes
-4. The CMW Evidence entry must contain a TrustMee-profile EAT, and endorsements may staple the Wasm verifier component and collateral
+1. Set request field `tee` to `sample`
+2. Set request field `evidence` to base64(URL_SAFE_NO_PAD) of the raw TrustMee CMW bytes
+3. The CMW Evidence entry must contain a TrustMee-profile EAT, and endorsements may staple the Wasm verifier component and collateral
 
 ```json
 "<base64(URL_SAFE_NO_PAD) raw TrustMee CMW bytes>"
 ```
 
-The `/component` registration endpoint is removed. Requests that omit `verifier` (or set `verifier = "native"`) continue to use native verifier drivers.
+The `/component` registration endpoint is removed. Requests with TEE values other than `sample` continue to use native verifier drivers.
 
 Cache location is host-managed. AS keeps Wasm verification cache data under the configured cache base directory.
 
-If `verifier` is omitted (or set to `native`), AS uses native verifier drivers as before.
-
-Wasm-backed verification now emits claims under the real tee key in the attestation token, so existing hardware-specific policy surfaces such as `input.snp` and `input.tdx` remain usable.
+Wasm-backed verification emits `tee_type` in the TrustMee result envelope and AS uses that value to place claims under the real TEE key in the attestation token, so existing hardware-specific policy surfaces such as `input.snp` and `input.tdx` remain usable.
 
 ### Policy Engine
 

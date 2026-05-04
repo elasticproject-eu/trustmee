@@ -2,7 +2,7 @@ use anyhow::bail;
 use attestation_service::HashAlgorithm;
 use attestation_service::{
     config::Config, config::ConfigError, AttestationService as Service, ServiceError, Tee,
-    TeeEvidence, VerificationRequest, VerifierType,
+    TeeEvidence, VerificationRequest,
 };
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -50,29 +50,12 @@ fn to_kbs_tee(tee: &str) -> anyhow::Result<Tee> {
     Ok(tee)
 }
 
-fn to_verifier_type(verifier: &str) -> anyhow::Result<VerifierType> {
-    match verifier {
-        "" | "native" => Ok(VerifierType::Native),
-        "wasm-verification-component" | "wasm" => Ok(VerifierType::WasmVerificationComponent),
-        other => bail!(
-            "Unsupported verifier `{other}`. Expected `native` or `wasm-verification-component`"
-        ),
+fn parse_evidence(tee: Tee, evidence: &str) -> anyhow::Result<TeeEvidence> {
+    if matches!(tee, Tee::Sample) {
+        return Ok(serde_json::Value::String(evidence.to_string()));
     }
-}
 
-fn validate_verifier_for_tee(tee: Tee, verifier: VerifierType) -> anyhow::Result<()> {
-    let _ = (tee, verifier);
-    Ok(())
-}
-
-fn parse_evidence(verifier: VerifierType, evidence: &str) -> anyhow::Result<TeeEvidence> {
     let evidence_bytes = URL_SAFE_NO_PAD.decode(evidence)?;
-    if matches!(verifier, VerifierType::WasmVerificationComponent) {
-        return Ok(serde_json::Value::String(
-            URL_SAFE_NO_PAD.encode(evidence_bytes),
-        ));
-    }
-
     let evidence: TeeEvidence = serde_json::from_slice(&evidence_bytes)?;
     Ok(evidence)
 }
@@ -154,11 +137,7 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
         for verification_request in request.verification_requests {
             let tee = to_kbs_tee(&verification_request.tee)
                 .map_err(|e| Status::aborted(format!("parse TEE type: {e}")))?;
-            let verifier = to_verifier_type(&verification_request.verifier)
-                .map_err(|e| Status::aborted(format!("parse verifier type: {e}")))?;
-            validate_verifier_for_tee(tee, verifier)
-                .map_err(|e| Status::aborted(format!("parse verifier type: {e}")))?;
-            let evidence = parse_evidence(verifier, &verification_request.evidence)
+            let evidence = parse_evidence(tee, &verification_request.evidence)
                 .map_err(|e| Status::aborted(format!("failed to parse tee evidence: {e}")))?;
 
             let runtime_data = match verification_request.runtime_data {
@@ -218,7 +197,6 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
                 runtime_data,
                 runtime_data_hash_algorithm,
                 init_data,
-                verifier,
             });
         }
         let policy_ids = match request.policy_ids.is_empty() {
@@ -347,11 +325,7 @@ impl ReferenceValueProviderService for Arc<RwLock<AttestationServer>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ensure_challenge_supported_tee, parse_evidence, to_kbs_tee, to_verifier_type,
-        validate_verifier_for_tee,
-    };
-    use attestation_service::VerifierType;
+    use super::{ensure_challenge_supported_tee, parse_evidence, to_kbs_tee};
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use kbs_types::Tee;
     use serde_json::json;
@@ -366,34 +340,22 @@ mod tests {
     }
 
     #[test]
-    fn wasm_backend_is_accepted_for_non_trustmee_tees() {
-        validate_verifier_for_tee(Tee::Tdx, VerifierType::WasmVerificationComponent)
-            .expect("tdx should accept wasm backend");
-    }
-
-    #[test]
-    fn parse_wasm_evidence_keeps_raw_bytes_base64url_encoded() {
-        let parsed = parse_evidence(VerifierType::WasmVerificationComponent, "Zm9v")
-            .expect("parse wasm evidence");
+    fn parse_sample_evidence_keeps_raw_bytes_base64url_encoded() {
+        let parsed =
+            parse_evidence(Tee::Sample, "Zm9v").expect("parse sample-routed wasm evidence");
         assert_eq!(parsed, json!("Zm9v"));
     }
 
     #[test]
     fn parse_native_evidence_keeps_json_shape() {
         let encoded = URL_SAFE_NO_PAD.encode(br#"{"quote":"Zm9v"}"#);
-        let parsed = parse_evidence(VerifierType::Native, &encoded).expect("parse native evidence");
+        let parsed = parse_evidence(Tee::Tdx, &encoded).expect("parse native evidence");
         assert_eq!(parsed, json!({"quote": "Zm9v"}));
     }
 
     #[test]
     fn non_trustmee_challenge_requests_are_still_supported() {
         ensure_challenge_supported_tee(Tee::Tdx).expect("tdx challenge request should work");
-    }
-
-    #[test]
-    fn wasm_alias_is_accepted_for_non_trustmee_tees() {
-        let verifier = to_verifier_type("wasm").expect("parse wasm alias");
-        validate_verifier_for_tee(Tee::Tdx, verifier).expect("tdx should accept wasm alias");
     }
 }
 

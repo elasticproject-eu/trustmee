@@ -552,7 +552,7 @@ mod tests {
     fn test_transform_claims_with_wasm_metadata() {
         let json = json!({
             "eat_profile": "https://trustmee.invalid/eat/verification-result",
-            "claims_type": "snp",
+            "tee_type": "snp",
             "claims": {
                 "measurement": "012345",
                 "reported_tcb_snp": 23
@@ -571,7 +571,7 @@ mod tests {
         let expected_claims = json!({
             "snp": {
                 "eat_profile": "https://trustmee.invalid/eat/verification-result",
-                "claims_type": "snp",
+                "tee_type": "snp",
                 "claims": {
                     "measurement": "012345",
                     "reported_tcb_snp": 23
@@ -593,7 +593,7 @@ mod tests {
             "default",
             &json!({
                 "eat_profile": "https://trustmee.invalid/eat/verification-result",
-                "claims_type": "snp",
+                "tee_type": "snp",
                 "claims": {
                     "measurement": "012345"
                 },
@@ -617,7 +617,7 @@ mod tests {
             "custom-policy",
             &json!({
                 "eat_profile": "https://trustmee.invalid/eat/verification-result",
-                "claims_type": "snp",
+                "tee_type": "snp",
                 "claims": {
                     "measurement": "012345"
                 },

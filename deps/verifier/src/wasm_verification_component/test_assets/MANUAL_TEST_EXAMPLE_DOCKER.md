@@ -4,7 +4,7 @@ This guide runs the current gRPC Wasm flow:
 
 1. Start `grpc-as` from the existing compose stack
 2. Prepare a TrustMee CMW file
-3. Send one `AttestationEvaluate` request with the real target tee plus `verifier = "wasm-verification-component"`
+3. Send one `AttestationEvaluate` request with `tee = "sample"`
 
 The Wasm backend no longer supports `RegisterComponent` or the older wrapped JSON payload with `component_id`.
 
@@ -63,8 +63,7 @@ jq -n \
   --arg evidence "$(b64url_file /tmp/input.cmw)" \
   '{
      verificationRequests: [{
-       tee: "snp",
-       verifier: "wasm-verification-component",
+       tee: "sample",
        evidence: $evidence
      }],
      policyIds: ["default"]
@@ -85,5 +84,5 @@ jq -r '.attestationToken // .attestation_token' \
   - This is expected. The gRPC registration API has been removed.
 - `feature wasm-verification-component-driver is not enabled`:
   - Rebuild with `--build-arg VERIFIER='wasm-verification-component-driver'`.
-- `claims_type` mismatch or a rejected Wasm request:
-  - Keep the request `tee` aligned with the real target TEE carried by the wrapped evidence, for example `snp` or `tdx`.
+- `tee_type` mismatch or a rejected Wasm request:
+  - Keep the verifier-produced `tee_type` aligned with the real target TEE carried by the wrapped evidence, for example `snp` or `tdx`.

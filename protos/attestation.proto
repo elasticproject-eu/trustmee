@@ -71,10 +71,6 @@ message IndividualAttestationRequest {
     // "sha384" or "sha512". If not specified, "sha384" will be selected.
     string runtime_data_hash_algorithm = 8;
 
-    // Verifier backend for this request. Use:
-    // - "native" (default)
-    // - "wasm-verification-component"
-    string verifier = 9;
 }
 
 message AttestationResponse {

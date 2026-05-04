@@ -4,7 +4,7 @@ use actix_web::{body::BoxBody, web, HttpRequest, HttpResponse, ResponseError};
 use anyhow::{anyhow, bail, Context};
 use attestation_service::{
     AttestationService, HashAlgorithm, InitDataInput as InnerInitDataInput,
-    RuntimeData as InnerRuntimeData, VerificationRequest, VerifierType as InnerVerifierType,
+    RuntimeData as InnerRuntimeData, VerificationRequest,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use kbs_types::Tee;
@@ -53,7 +53,6 @@ pub struct AttestationRequest {
 pub struct IndividualAttestationRequest {
     tee: String,
     evidence: String,
-    verifier: Option<String>,
     runtime_data: Option<RuntimeData>,
     init_data: Option<InitDataInput>,
     runtime_data_hash_algorithm: Option<String>,
@@ -129,25 +128,8 @@ fn parse_init_data(data: InitDataInput) -> Result<InnerInitDataInput> {
     Ok(res)
 }
 
-fn parse_verifier(verifier: Option<&str>) -> anyhow::Result<InnerVerifierType> {
-    match verifier {
-        None | Some("native") => Ok(InnerVerifierType::Native),
-        Some("wasm-verification-component") | Some("wasm") => {
-            Ok(InnerVerifierType::WasmVerificationComponent)
-        }
-        Some(other) => bail!(
-            "verifier `{other}` not supported, expected `native` or `wasm-verification-component`"
-        ),
-    }
-}
-
-fn validate_verifier_for_tee(tee: Tee, verifier: InnerVerifierType) -> anyhow::Result<()> {
-    let _ = (tee, verifier);
-    Ok(())
-}
-
-fn parse_evidence(verifier: InnerVerifierType, evidence: &str) -> Result<Value> {
-    if matches!(verifier, InnerVerifierType::WasmVerificationComponent) {
+fn parse_evidence(tee: Tee, evidence: &str) -> Result<Value> {
+    if matches!(tee, Tee::Sample) {
         return Ok(Value::String(evidence.to_string()));
     }
 
@@ -180,9 +162,7 @@ pub async fn attestation(
     let mut verification_requests: Vec<VerificationRequest> = vec![];
     for attestation_request in request.verification_requests {
         let tee = to_tee(&attestation_request.tee)?;
-        let verifier = parse_verifier(attestation_request.verifier.as_deref())?;
-        validate_verifier_for_tee(tee, verifier)?;
-        let evidence = parse_evidence(verifier, &attestation_request.evidence)?;
+        let evidence = parse_evidence(tee, &attestation_request.evidence)?;
 
         let runtime_data = attestation_request
             .runtime_data
@@ -210,7 +190,6 @@ pub async fn attestation(
             runtime_data,
             runtime_data_hash_algorithm,
             init_data,
-            verifier,
         });
     }
 
@@ -355,11 +334,7 @@ pub struct RemovePolicyRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ensure_challenge_supported_tee, parse_evidence, parse_verifier, to_tee,
-        validate_verifier_for_tee,
-    };
-    use attestation_service::VerifierType as InnerVerifierType;
+    use super::{ensure_challenge_supported_tee, parse_evidence, to_tee};
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     use kbs_types::Tee;
     use serde_json::json;
@@ -374,37 +349,21 @@ mod tests {
     }
 
     #[test]
-    fn wasm_backend_is_accepted_for_non_trustmee_tees() {
-        validate_verifier_for_tee(Tee::Snp, InnerVerifierType::WasmVerificationComponent)
-            .expect("snp should accept wasm backend");
-    }
-
-    #[test]
-    fn parse_wasm_evidence_passes_original_string_through() {
-        let parsed = parse_evidence(
-            InnerVerifierType::WasmVerificationComponent,
-            "not-decoded-here",
-        )
-        .expect("parse wasm evidence");
+    fn parse_sample_evidence_passes_original_string_through() {
+        let parsed = parse_evidence(Tee::Sample, "not-decoded-here")
+            .expect("parse sample-routed wasm evidence");
         assert_eq!(parsed, json!("not-decoded-here"));
     }
 
     #[test]
     fn parse_native_evidence_keeps_json_shape() {
         let encoded = URL_SAFE_NO_PAD.encode(br#"{"quote":"Zm9v"}"#);
-        let parsed =
-            parse_evidence(InnerVerifierType::Native, &encoded).expect("parse native evidence");
+        let parsed = parse_evidence(Tee::Snp, &encoded).expect("parse native evidence");
         assert_eq!(parsed, json!({"quote": "Zm9v"}));
     }
 
     #[test]
     fn non_trustmee_challenge_requests_are_still_supported() {
         ensure_challenge_supported_tee(Tee::Snp).expect("snp challenge request should work");
-    }
-
-    #[test]
-    fn wasm_alias_is_accepted_for_non_trustmee_tees() {
-        let verifier = parse_verifier(Some("wasm")).expect("parse wasm alias");
-        validate_verifier_for_tee(Tee::Snp, verifier).expect("snp should accept wasm alias");
     }
 }

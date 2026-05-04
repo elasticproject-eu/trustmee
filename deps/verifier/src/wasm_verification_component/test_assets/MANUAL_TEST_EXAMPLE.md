@@ -4,7 +4,7 @@ This guide runs the current attestation-service Wasm flow:
 
 1. Start `restful-as` with the `wasm-verification-component-driver`
 2. Prepare a TrustMee CMW file
-3. Send one attestation request with the real target tee plus `verifier = "wasm-verification-component"`
+3. Send one attestation request with `tee = "sample"`
 
 The Wasm backend no longer supports `/component` registration or the older wrapped JSON payload with `component_id`.
 
@@ -72,8 +72,7 @@ jq -n \
   --arg evidence "$(b64url_file /tmp/input.cmw)" \
   '{
      verification_requests: [{
-       tee: "snp",
-       verifier: "wasm-verification-component",
+       tee: "sample",
        evidence: $evidence
      }],
      policy_ids: ["default"]
