@@ -621,7 +621,7 @@ mod tests {
     fn validate_wasm_claims_rejects_unsupported_tee_type() {
         let err = validate_wasm_verification_component_claims(json!({
             "eat_profile": TRUSTMEE_WASM_OUTPUT_EAT_PROFILE,
-            "tee_type": "az-snp-vtpm",
+            "tee_type": "new-tee-type",
             "claims": {
                 "measurement": "012345"
             },

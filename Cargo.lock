@@ -10071,7 +10071,7 @@ dependencies = [
 [[package]]
 name = "wasm-verification-component"
 version = "0.1.0"
-source = "git+https://github.com/elasticproject-eu/trustmee-lib.git#3eefb1ec39be9eb62f6fade62a558d0d870aa8d6"
+source = "git+https://github.com/elasticproject-eu/trustmee-lib.git#e7377ea660332aad08eb85b51cab99949c8276ee"
 dependencies = [
  "anyhow",
  "asn1-rs",
