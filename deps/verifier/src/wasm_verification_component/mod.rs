@@ -75,7 +75,6 @@ fn current_driver_config() -> Result<ComponentRegistryConfig> {
 fn verify_options_from_config(config: &ComponentRegistryConfig) -> VerifyOptions {
     VerifyOptions {
         cache_dir: config.component_cache_base_dir.clone(),
-        pccs_url: None,
         component_repository_hint: None,
         component_trust_store: config.component_trust_store.clone(),
     }
@@ -183,8 +182,7 @@ mod tests {
 
         assert_eq!(options.cache_dir, cfg.component_cache_base_dir);
         assert_eq!(options.component_trust_store, cfg.component_trust_store);
-        assert_eq!(options.pccs_url, None);
-        assert_eq!(options.component_repository_hint, None);
+assert_eq!(options.component_repository_hint, None);
     }
 
     #[test]
