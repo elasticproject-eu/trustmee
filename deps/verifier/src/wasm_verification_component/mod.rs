@@ -6,7 +6,7 @@ use std::{
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use wasm_verification_component::{VerifyOptions, WasmVerificationComponent};
+use trustmee_lib::{VerifyOptions, WasmVerificationComponent};
 
 use crate::{InitDataHash, ReportData, TeeClass, TeeEvidence, TeeEvidenceParsedClaim, Verifier};
 

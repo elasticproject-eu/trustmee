@@ -501,7 +501,7 @@ mod tests {
         sha2::Digest,
         std::{collections::BTreeMap, fs, path::PathBuf},
         tempfile::TempDir,
-        wasm_verification_component::{
+        trustmee_lib::{
             component_id_for_component_bytes, SNP_COLLATERAL_MEDIA_TYPE, TRUSTMEE_COLLECTION_TYPE,
             TRUSTMEE_EAT_PROFILE,
         },
