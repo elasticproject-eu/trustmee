@@ -3906,7 +3906,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "system-configuration 0.7.0",
  "tokio",
  "tower-service",
@@ -6340,7 +6340,7 @@ dependencies = [
  "heck 0.5.0",
  "itertools 0.12.1",
  "log",
- "multimap 0.9.1",
+ "multimap 0.10.1",
  "once_cell",
  "petgraph 0.6.5",
  "prettyplease",
@@ -6620,7 +6620,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls 0.23.37",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -6658,7 +6658,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.3",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -10071,7 +10071,7 @@ dependencies = [
 [[package]]
 name = "wasm-verification-component"
 version = "0.1.0"
-source = "git+https://github.com/elasticproject-eu/trustmee-lib.git#e7377ea660332aad08eb85b51cab99949c8276ee"
+source = "git+https://github.com/elasticproject-eu/trustmee-lib.git#5897c13a6822f72bf002968306387f3ab11b6f4f"
 dependencies = [
  "anyhow",
  "asn1-rs",
@@ -10090,9 +10090,11 @@ dependencies = [
  "sev 7.1.0",
  "sha2",
  "strum 0.27.2",
+ "thiserror 2.0.18",
  "tokio",
  "tracing",
  "wasm-pkg-client",
+ "wasmparser 0.243.0",
  "wasmsign2",
  "wasmtime",
  "wasmtime-wasi",
@@ -10673,7 +10675,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
